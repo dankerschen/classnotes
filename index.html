@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Sportnotizen: Notizen per Sprache oder Text pro Schüler, mit Export und Backup.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sportnotizen">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Sportnotizen</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f2f2f7; --surface: #ffffff; --surface-2: #f2f2f7; --sheet: #ffffff;
+    --fill: rgba(120,120,128,.12); --fill-strong: rgba(120,120,128,.2);
+    --label: #000000; --label-2: rgba(60,60,67,.72); --label-3: rgba(60,60,67,.3); --sep: rgba(60,60,67,.2);
+    --tint: #0f766e; --tint-ink: #ffffff; --tint-soft: rgba(15,118,110,.12);
+    --red: #ff3b30; --orange: #ff9500; --orange-text: #b25e00; --green: #34c759; --green-text: #1f7a3a;
+    --bar: rgba(242,242,247,.74);
+    --glass: rgba(255,255,255,.58); --glass-strong: rgba(255,255,255,.95);
+    --glass-edge: rgba(255,255,255,.75); --glass-hi: rgba(255,255,255,.9);
+    --glass-shadow: 0 10px 34px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.06);
+    --scrim: rgba(0,0,0,.3); --ring: rgba(60,60,67,.55);
+    --r-card: 24px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000; --surface: #1c1c1e; --surface-2: #2c2c2e; --sheet: #1c1c1e;
+      --fill: rgba(120,120,128,.24); --fill-strong: rgba(120,120,128,.36);
+      --label: #ffffff; --label-2: rgba(235,235,245,.68); --label-3: rgba(235,235,245,.3); --sep: rgba(84,84,88,.65);
+      --tint: #3cc4b4; --tint-ink: #03201c; --tint-soft: rgba(60,196,180,.18);
+      --red: #ff453a; --orange: #ff9f0a; --orange-text: #ff9f0a; --green: #30d158; --green-text: #30d158;
+      --bar: rgba(0,0,0,.72);
+      --glass: rgba(60,60,64,.52); --glass-strong: rgba(44,44,46,.95);
+      --glass-edge: rgba(255,255,255,.16); --glass-hi: rgba(255,255,255,.1);
+      --glass-shadow: 0 12px 38px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.4);
+      --scrim: rgba(0,0,0,.5); --ring: rgba(255,255,255,.88);
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { font-size: 17px; -webkit-text-size-adjust: 100%; }
+  @supports (font: -apple-system-body) { html { font: -apple-system-body; } } /* iOS: folgt der eingestellten Textgröße */
+  body {
+    margin: 0; background: var(--bg); color: var(--label); font-size: 1rem; line-height: 1.3;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased; overscroll-behavior-y: none;
+  }
+  body.sheet-open { overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  button:disabled { cursor: default; }
+  input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--tint); outline-offset: 2px; }
+  .hidden { display: none !important; }
+  .ic { display: block; flex: none; }
+
+  /* ---------- Navigation: schwebende Glas-Tasten + Titel, der beim Scrollen erscheint ---------- */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 30;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px;
+    padding: calc(env(safe-area-inset-top) + 6px) 14px 6px; min-height: calc(env(safe-area-inset-top) + 56px);
+    transition: background .2s, box-shadow .2s;
+  }
+  .nav.scrolled {
+    background: var(--bar); -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%);
+    box-shadow: 0 .5px 0 var(--sep);
+  }
+  .navstart { justify-self: start; } .navend { justify-self: end; display: flex; gap: 8px; }
+  .navtitle { font-weight: 600; max-width: 52vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .15s; }
+  .navtitle.show { opacity: 1; }
+  .glassbtn {
+    display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--label);
+    background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: inset 0 0 0 .5px var(--glass-edge), inset 0 1px 0 var(--glass-hi), 0 4px 14px rgba(0,0,0,.1);
+    transition: transform .15s;
+  }
+  .glassbtn:active { transform: scale(.92); }
+
+  /* ---------- Seite ---------- */
+  main { max-width: 680px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 56px) 16px calc(env(safe-area-inset-bottom) + 40px); }
+  main.with-dock { padding-bottom: calc(env(safe-area-inset-bottom) + 190px); }
+  .titleblock { padding: 6px 4px 16px; }
+  .largetitle { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -.025em; line-height: 1.15; overflow-wrap: anywhere; }
+  .subtitle { margin: 3px 0 0; color: var(--label-2); }
+  .sectionhead { margin: 24px 16px 8px; font-size: .88rem; font-weight: 400; color: var(--label-2); }
+  .footnote { margin: -8px 16px 22px; font-size: .82rem; line-height: 1.4; color: var(--label-2); }
+
+  /* ---------- Listen (inset grouped) ---------- */
+  .list, .card { background: var(--surface); border-radius: var(--r-card); margin: 0 0 20px; overflow: hidden; }
+  .cell { position: relative; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 16px; }
+  .cell + .cell::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; height: .5px; background: var(--sep); }
+  .cell.tap { cursor: pointer; }
+  .cell.tap:active { background: var(--fill); }
+  .cell .stack { flex: 1; min-width: 0; }
+  .cell .name { display: block; font-weight: 500; overflow-wrap: anywhere; }
+  .cell .sub { display: block; margin-top: 1px; font-size: .88rem; color: var(--label-2); }
+  .cell .detail { color: var(--label-2); }
+  .cell .ic.chev { color: var(--label-3); }
+  .cell.destructive .name { color: var(--red); }
+  .glyph { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: #fff; flex: none; }
+  .glyph.tint { background: var(--tint); color: var(--tint-ink); } .glyph.green { background: #34a853; } .glyph.red { background: var(--red); } .glyph.gray { background: #8e8e93; }
+  .glyph .ic { width: 19px; height: 19px; }
+  .empty-row { padding: 18px 16px; color: var(--label-2); }
+  .plain { width: 100%; background: none; border: 0; outline: none; padding: 0; min-height: 40px; }
+  .plain::placeholder, textarea::placeholder { color: var(--label-3); }
+  .card textarea { display: block; width: 100%; background: none; border: 0; outline: none; padding: 14px 16px; resize: vertical; min-height: 120px; line-height: 1.4; }
+  .card .cell { min-height: 52px; }
+  .minus { width: 30px; height: 30px; display: grid; place-items: center; color: var(--red); flex: none; }
+  .search { display: flex; align-items: center; gap: 8px; background: var(--fill); color: var(--label-2); border-radius: 999px; padding: 0 14px; min-height: 44px; margin: 0 0 16px; }
+  .search input { flex: 1; min-width: 0; background: none; border: 0; outline: none; }
+  .search:focus-within { outline: 3px solid var(--tint); }
+
+  /* ---------- Buttons ---------- */
+  .capsule {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 22px;
+    border-radius: 999px; font-weight: 600; background: var(--fill); color: var(--tint); transition: transform .12s, opacity .12s;
+  }
+  .capsule.filled { background: var(--tint); color: var(--tint-ink); }
+  .capsule.soft { background: var(--tint-soft); color: var(--tint); }
+  .capsule.block { display: flex; width: 100%; margin: 0 0 20px; }
+  .capsule.sm { min-height: 38px; padding: 0 18px; font-size: .94rem; }
+  .capsule:active { transform: scale(.97); opacity: .85; }
+  .capsule:disabled { opacity: .4; transform: none; }
+  .txtbtn { min-height: 44px; padding: 0 4px; font-size: 1rem; color: var(--tint); }
+  .txtbtn.danger { color: var(--red); }
+
+  /* ---------- Dock: schwebende Glasfläche unten ---------- */
+  .dock {
+    position: fixed; z-index: 20; left: 0; right: 0; margin: 0 auto; width: min(656px, calc(100% - 24px));
+    bottom: calc(env(safe-area-inset-bottom) + 10px); border-radius: 34px; padding: 12px 16px 10px;
+    background: var(--glass); -webkit-backdrop-filter: blur(28px) saturate(190%); backdrop-filter: blur(28px) saturate(190%);
+    box-shadow: inset 0 0 0 .5px var(--glass-edge), inset 0 1px 0 var(--glass-hi), var(--glass-shadow);
+  }
+  .backupcard { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; border-radius: 30px; padding: 14px 14px 14px 18px; }
+  .backuptext { display: flex; align-items: center; gap: 10px; flex: 1 1 190px; min-width: 0; }
+  .backupcard .dot { flex: none; }
+  .backupcard .state { font-weight: 600; font-size: .95rem; }
+  .backupcard .sub { font-size: .82rem; color: var(--label-2); }
+  .backupcard.dirty .state, .backupcard.dirty .dot { color: var(--orange-text); }
+  .backupcard:not(.dirty) .state, .backupcard:not(.dirty) .dot { color: var(--green-text); }
+  .backupcard .capsule { flex: 1 1 auto; }
+
+  .wavewrap { height: 0; overflow: hidden; transition: height .34s cubic-bezier(.2,.9,.25,1); }
+  .dock.recording .wavewrap { height: 84px; margin-bottom: 8px; }
+  #wave { display: block; width: 100%; height: 84px; }
+  .dockrow { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 72px; }
+  .slot { display: flex; align-items: center; }
+  .slot.r { justify-self: end; }
+  .only-rec { display: none; } .dock.recording .only-rec { display: inline-grid; } .dock.recording .only-idle { display: none; }
+  .timer { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 1.3rem; letter-spacing: -.01em; min-width: 3.2rem; text-align: right; display: none; }
+  .dock.recording .timer { display: block; }
+  .timer.warn { color: var(--orange-text); }
+  .recbtn { position: relative; width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center; }
+  .recbtn::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 4px solid var(--ring); transition: transform .2s; }
+  .recbtn .rb { width: 58px; height: 58px; border-radius: 50%; background: var(--red); transition: width .26s cubic-bezier(.3,1.3,.5,1), height .26s cubic-bezier(.3,1.3,.5,1), border-radius .26s; }
+  .recbtn.on .rb { width: 30px; height: 30px; border-radius: 9px; }
+  .recbtn:active::before { transform: scale(.94); } .recbtn:disabled { opacity: .45; }
+  .hint { text-align: center; font-size: .82rem; color: var(--label-2); margin-top: 4px; min-height: 1.2em; }
+  .hint.ok { color: var(--green-text); } .hint.err { color: var(--red); }
+  .dock.recording .hint { display: none; }
+
+  /* ---------- Notizen ---------- */
+  .note { position: relative; padding: 12px 16px 14px; }
+  .note + .note::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; height: .5px; background: var(--sep); }
+  .notehead { display: flex; align-items: center; justify-content: space-between; min-height: 28px; }
+  .notedate { font-size: .88rem; font-weight: 500; color: var(--label-2); }
+  .more { width: 40px; height: 36px; margin: -4px -8px -4px 0; display: grid; place-items: center; color: var(--label-2); border-radius: 18px; }
+  .more:active { background: var(--fill); }
+  .note .text { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; }
+  .tag { margin-left: 8px; font-size: .72rem; font-weight: 600; color: var(--orange-text); background: rgba(255,149,0,.16); border-radius: 999px; padding: 2px 9px; }
+  .empty { text-align: center; padding: 28px 24px 0; color: var(--label-2); }
+  .empty .art { width: 168px; height: 168px; color: var(--tint); }
+  .empty h2 { margin: 6px 0 6px; font-size: 1.25rem; font-weight: 600; color: var(--label); letter-spacing: -.01em; }
+  .empty p { margin: 0 auto; max-width: 30ch; line-height: 1.4; }
+
+  /* ---------- Sheets ---------- */
+  #editor, .overlay { position: fixed; inset: 0; z-index: 40; }
+  #editor .scrim, .overlay .scrim { position: absolute; inset: 0; background: var(--scrim); animation: fadein .25s both; }
+  #editor.closing .scrim { animation: fadeout .22s both; }
+  .sheet {
+    position: absolute; left: 0; right: 0; margin: 0 auto; width: min(640px, 100%); bottom: var(--kb, 0px);
+    max-height: calc(var(--vvh, 100dvh) - env(safe-area-inset-top) - 14px); overflow: auto; overscroll-behavior: contain;
+    background: var(--sheet); border-radius: 32px 32px 0 0; padding: 8px 18px calc(env(safe-area-inset-bottom) + 18px);
+    box-shadow: 0 -10px 44px rgba(0,0,0,.2); animation: rise .4s cubic-bezier(.2,.9,.25,1) backwards;
+  }
+  #editor.closing .sheet { animation: drop .22s ease-in both; }
+  .grabber { width: 38px; height: 5px; border-radius: 3px; background: var(--label-3); margin: 0 auto 4px; }
+  .sheet-nav { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 4px 0 10px; touch-action: none; }
+  .sheet-nav h2 { margin: 0; font-size: 1.06rem; font-weight: 600; }
+  .sheet-nav .txtbtn { justify-self: start; } .sheet-nav .capsule { justify-self: end; }
+  .status { display: flex; align-items: center; gap: 8px; margin: 0 2px 10px; font-size: .92rem; color: var(--label-2); }
+  .status.ok { color: var(--green-text); } .status.err { color: var(--red); }
+  .sheet textarea { display: block; width: 100%; min-height: 150px; resize: none; border: 0; outline: none; background: var(--surface-2); border-radius: 22px; padding: 14px 16px; line-height: 1.4; }
+  .sheet.busy textarea { opacity: .55; }
+  .daterow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .daterow label { color: var(--label-2); font-size: .94rem; padding-right: 2px; }
+  .daterow input { flex: 1 1 0; min-width: 0; min-height: 44px; border: 0; border-radius: 14px; padding: 0 12px; background: var(--surface-2); }
+  .chips { display: flex; gap: 8px; flex: 1 1 100%; }
+  .chips .chip { flex: 1; }
+  .chip { min-height: 44px; padding: 0 12px; border-radius: 999px; background: var(--fill); font-size: .86rem; font-weight: 500; white-space: nowrap; }
+  .chip:active { background: var(--fill-strong); }
+  #retry { margin-top: 12px; }
+  .spinner { width: 16px; height: 16px; border: 2.5px solid var(--fill-strong); border-top-color: var(--label-2); border-radius: 50%; animation: spin .8s linear infinite; flex: none; }
+
+  .actionwrap { position: absolute; left: 0; right: 0; margin: 0 auto; width: min(420px, calc(100% - 16px)); bottom: calc(env(safe-area-inset-bottom) + 8px); display: flex; flex-direction: column; gap: 8px; animation: rise .36s cubic-bezier(.2,.9,.25,1) both; }
+  .actiongroup, .actionbtn.cancel { background: var(--glass-strong); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); border-radius: 26px; overflow: hidden; box-shadow: var(--glass-shadow); }
+  .actiontitle { padding: 14px 16px 6px; text-align: center; font-size: .82rem; color: var(--label-2); }
+  .actionbtn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 58px; color: var(--tint); font-size: 1.06rem; }
+  .actiongroup .actionbtn + .actionbtn { border-top: .5px solid var(--sep); }
+  .actionbtn.destructive { color: var(--red); } .actionbtn.cancel { font-weight: 600; }
+  .actionbtn:active { background: var(--fill); }
+
+  .toast {
+    position: fixed; z-index: 70; left: 0; right: 0; margin: 0 auto; width: fit-content; max-width: calc(100% - 32px);
+    top: calc(env(safe-area-inset-top) + 64px); padding: 11px 18px; border-radius: 999px; font-size: .94rem; font-weight: 500; text-align: center;
+    background: var(--glass-strong); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: inset 0 0 0 .5px var(--glass-edge), var(--glass-shadow);
+    opacity: 0; transform: translateY(-8px) scale(.97); transition: opacity .2s, transform .25s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: none; }
+
+  @keyframes rise { from { transform: translateY(100%); } to { transform: none; } }
+  @keyframes drop { to { transform: translateY(100%); } }
+  @keyframes fadein { from { opacity: 0; } }
+  @keyframes fadeout { to { opacity: 0; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+  @media (prefers-reduced-transparency: reduce) {
+    :root { --glass: var(--surface); --glass-strong: var(--surface); --bar: var(--bg); }
+    .nav.scrolled, .glassbtn, .dock, .actiongroup, .actionbtn.cancel, .toast { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  }
+  @media (prefers-contrast: more) { :root { --sep: rgba(60,60,67,.5); --label-2: rgba(0,0,0,.85); } }
+  @media (prefers-contrast: more) and (prefers-color-scheme: dark) { :root { --sep: rgba(255,255,255,.4); --label-2: rgba(255,255,255,.9); } }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root { --glass: var(--surface); --glass-strong: var(--surface); --bar: var(--bg); }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- Mikrofon: Noun Project (Royalty-Free-Lizenz), mit currentColor eingefärbt -->
+    <symbol id="mic-art" viewBox="0 0 512 512"><g transform="translate(0,512) scale(0.1,-0.1)" fill="currentColor" stroke="none"><path d="M3318 4775 c-1 -2 -23 -6 -46 -10 -213 -31 -458 -183 -598 -368 -73 -97 -135 -232 -150 -325 -4 -21 -8 -44 -9 -52 -2 -8 -4 -25 -4 -36 -1 -16 -9 -23 -34 -28 -76 -14 -131 -122 -106 -209 7 -26 -4 -47 -56 -103 -16 -17 -87 -100 -375 -439 -150 -176 -284 -333 -299 -350 -72 -82 -283 -328 -333 -390 -206 -255 -244 -307 -271 -365 -55 -119 -42 -267 33 -376 16 -23 58 -68 94 -101 182 -166 385 -175 571 -23 28 23 120 110 205 194 85 83 187 182 227 218 72 65 73 65 109 54 l36 -11 -4 -95 c-6 -147 -3 -142 -301 -450 -77 -80 -242 -248 -367 -375 -248 -252 -338 -353 -371 -417 -40 -77 -24 -152 41 -196 41 -27 87 -27 144 1 34 17 179 147 273 246 l32 34 53 -17 c29 -9 98 -19 153 -22 55 -3 127 -7 160 -9 33 -2 112 -7 175 -11 63 -3 119 -10 124 -15 5 -4 10 -52 12 -106 7 -188 22 -235 86 -266 44 -21 121 -16 155 10 57 42 67 73 71 232 2 80 7 149 11 153 3 4 33 10 66 13 33 4 71 8 85 10 14 2 66 7 115 10 162 10 222 19 273 41 35 14 36 14 66 -14 17 -16 56 -51 86 -79 30 -28 87 -81 125 -117 74 -70 152 -116 196 -116 126 0 198 96 151 202 -30 69 -263 310 -508 528 -22 19 -62 55 -89 79 -126 112 -460 440 -486 478 -53 77 -62 116 -74 338 -7 123 -14 198 -25 250 -7 32 -5 45 11 72 18 29 27 89 17 119 -1 6 87 103 197 215 l200 204 47 2 c90 4 153 50 173 129 l11 46 85 27 c199 65 358 186 479 365 175 261 212 542 104 798 -103 248 -379 426 -658 426 -46 0 -86 -1 -88 -3z m183 -92 c12 -4 18 -22 23 -70 4 -36 5 -67 4 -69 -2 -2 -33 -6 -68 -9 -36 -4 -75 -8 -87 -10 -13 -2 -23 -1 -24 3 0 4 -2 16 -5 27 -11 54 -15 115 -9 125 7 11 128 12 166 3z m-240 -40 c1 -27 2 -40 13 -95 7 -34 4 -35 -70 -43 l-61 -7 -7 51 c-4 28 -9 57 -12 65 -4 10 12 20 53 34 77 27 83 27 84 -5z m424 -19 c28 -13 65 -35 84 -49 l35 -25 -55 -1 c-30 0 -73 -2 -96 -3 -24 -1 -43 0 -44 3 -1 6 -4 26 -14 79 -6 32 -5 33 17 27 13 -4 46 -18 73 -31z m-619 -98 l-1 -40 -68 -16 c-62 -15 -68 -15 -82 0 -8 9 -15 20 -15 23 0 4 35 30 77 58 86 56 91 54 89 -25z m700 -81 c2 -11 6 -41 9 -67 l6 -48 -48 -1 c-26 0 -58 -2 -70 -5 -14 -2 -23 1 -24 9 0 6 -2 19 -3 27 -2 8 -6 37 -9 63 l-6 48 71 -3 c62 -3 72 -5 74 -23z m151 -12 c44 -57 63 -90 56 -97 -9 -9 -113 -7 -114 2 0 4 -2 14 -4 22 -1 8 -6 36 -10 63 -7 46 -7 47 18 47 17 0 34 -12 54 -37z m-367 2 c0 -14 0 -26 1 -27 0 -2 4 -22 9 -46 9 -49 10 -48 -68 -56 -28 -4 -67 -8 -85 -11 -30 -5 -33 -3 -34 22 -1 16 -5 51 -8 80 l-6 52 38 3 c21 2 64 4 96 6 55 3 57 2 57 -23z m-674 -42 c74 -127 158 -227 374 -444 207 -208 334 -320 450 -397 47 -30 87 -57 90 -60 6 -5 -57 -62 -70 -62 -12 0 -238 168 -320 238 -84 73 -318 306 -402 402 -71 81 -218 286 -218 303 0 12 50 67 61 67 4 0 20 -21 35 -47z m408 36 c3 -2 8 -37 11 -77 6 -57 5 -72 -6 -73 -8 0 -22 -2 -31 -4 -10 -2 -36 -6 -58 -10 l-40 -7 -1 49 c0 26 -2 62 -4 80 -3 31 -2 32 48 41 54 9 73 9 81 1z m-203 -42 c0 -12 2 -48 5 -79 4 -45 3 -57 -8 -53 -14 6 -100 119 -99 132 0 7 34 15 84 20 11 1 17 -5 18 -20z m-378 -248 c-4 -4 -23 -10 -41 -12 -30 -5 -32 -3 -26 16 3 12 20 49 38 82 l31 59 3 -68 c2 -38 -1 -72 -5 -77z m1301 123 c3 -5 8 -22 10 -38 3 -16 8 -38 10 -50 5 -22 9 -89 7 -114 -1 -12 -15 -15 -72 -13 -39 1 -72 3 -74 5 -1 2 -6 49 -9 105 l-7 102 58 4 c32 2 61 4 65 5 4 1 9 -2 12 -6z m-210 -25 c3 -13 8 -62 12 -110 l6 -87 -53 -1 c-30 0 -64 -2 -76 -5 -13 -2 -23 -3 -23 -1 -1 1 -3 50 -7 109 l-6 106 29 4 c96 11 112 9 118 -15z m-216 -104 c2 -57 0 -103 -5 -104 -4 0 -30 -3 -58 -5 -27 -2 -67 -6 -87 -8 l-38 -3 -1 71 c0 39 -2 85 -4 103 l-3 31 61 9 c34 5 78 9 97 8 l35 0 3 -102z m-755 25 c-2 -5 -13 -8 -24 -8 -15 0 -19 7 -19 38 l0 37 24 -30 c13 -16 22 -33 19 -37z m488 -10 c2 -80 1 -126 0 -140 -2 -16 -161 152 -161 170 0 6 8 12 18 13 24 0 106 11 110 13 1 2 9 3 17 3 11 0 15 -14 16 -59z m-377 -120 c25 -31 43 -59 39 -61 -9 -4 -79 -10 -143 -11 l-45 -1 0 59 c0 58 1 59 30 63 16 2 31 6 33 7 13 14 47 -8 86 -56z m-223 -5 c0 -21 2 -48 3 -60 2 -17 -4 -23 -26 -28 -15 -3 -42 -8 -59 -11 l-32 -6 6 58 c4 33 6 65 7 72 0 8 17 12 50 12 l50 0 1 -37z m1315 -84 c-3 -22 -10 -58 -16 -80 -10 -37 -13 -39 -50 -40 -22 -1 -48 -2 -57 -3 -16 -1 -18 9 -18 74 l1 75 39 5 c22 3 55 6 73 7 l34 2 -6 -40z m-218 -57 c3 -82 3 -82 -23 -82 -14 0 -27 -1 -30 -2 -2 0 -25 -4 -50 -8 l-45 -7 0 88 0 88 53 3 c98 6 92 11 95 -80z m-228 -21 c0 -49 -4 -93 -10 -96 -10 -6 -52 28 -144 120 l-51 49 40 6 c22 3 68 6 103 8 l62 3 0 -90z m-1050 17 c0 -19 77 -167 108 -208 95 -128 266 -289 413 -388 75 -51 195 -112 221 -112 7 0 19 -4 27 -9 33 -21 -38 -81 -98 -81 -133 0 -479 274 -654 517 -94 131 -112 185 -83 242 22 41 66 67 66 39z m450 10 c1 -2 3 -41 6 -88 l6 -86 -84 0 c-45 1 -86 5 -90 10 -6 9 -23 133 -20 146 2 7 181 25 182 18z m165 -88 l80 -80 -45 -1 c-25 0 -60 -2 -77 -4 -29 -3 -33 -1 -33 21 0 13 -1 26 -2 29 -6 14 -13 115 -8 115 3 0 41 -36 85 -80z m-424 62 c0 -4 2 -14 4 -23 13 -70 15 -129 3 -129 -16 0 -109 143 -98 150 13 8 90 10 91 2z m1239 -129 c0 -11 -79 -141 -90 -148 -9 -6 -2 114 9 153 2 6 81 1 81 -5z m-166 -71 c-3 -31 -8 -59 -10 -61 -11 -12 -148 94 -140 108 3 4 33 9 68 10 34 1 64 4 67 6 14 14 21 -15 15 -63z m-793 -40 c0 -9 2 -25 4 -34 2 -9 6 -35 9 -56 3 -22 8 -51 11 -65 10 -39 -26 -41 -72 -3 -83 68 -110 101 -116 138 -3 20 -4 38 -2 40 2 1 40 2 84 0 67 -3 81 -6 82 -20z m259 -5 c0 -18 3 -62 6 -99 l7 -68 -29 -1 c-16 0 -53 -2 -81 -4 -29 -2 -55 0 -57 4 -6 9 -12 43 -21 115 -4 31 -8 59 -9 63 -1 8 61 16 147 20 35 1 37 0 37 -30z m-830 4 c0 -10 91 -130 143 -189 107 -121 252 -246 394 -339 l112 -73 -187 -190 -187 -190 -40 14 c-81 28 -119 5 -320 -198 -170 -170 -193 -206 -178 -273 l10 -43 -130 -123 c-71 -67 -164 -155 -205 -195 -93 -91 -211 -186 -265 -214 -54 -28 -154 -33 -211 -11 -38 15 -107 59 -156 100 -35 29 -80 100 -100 157 -40 117 -5 223 123 377 40 48 113 135 162 195 73 88 332 393 428 504 76 87 265 309 328 385 40 49 82 99 92 110 10 11 53 62 95 113 71 86 92 105 92 83z m1012 -88 c38 -31 67 -57 66 -58 -2 -2 -39 -6 -83 -10 -80 -6 -81 -6 -82 17 0 13 -1 43 -2 68 -4 70 -3 74 15 55 10 -9 48 -42 86 -72z m179 -134 c16 -11 27 -25 23 -30 -16 -26 -258 -126 -268 -111 -2 4 -7 29 -10 56 -4 27 -8 54 -9 60 -1 5 7 11 18 12 83 6 197 23 204 30 7 7 11 5 42 -17z m-340 -26 c0 -4 2 -23 4 -41 2 -19 6 -40 9 -48 10 -26 -21 -26 -78 0 -59 27 -96 58 -96 80 0 10 20 14 80 15 44 1 80 -2 81 -6z m-607 -828 c16 -42 3 -61 -131 -193 -174 -170 -216 -204 -244 -200 -30 4 -63 50 -54 77 8 25 266 287 325 330 40 28 44 29 70 16 15 -8 30 -22 34 -30z m-11 -251 c6 -40 12 -123 22 -294 7 -126 20 -176 57 -236 32 -50 350 -364 548 -540 185 -166 483 -461 530 -526 35 -48 37 -61 10 -88 -37 -37 -98 -20 -166 45 -6 5 -55 51 -109 100 -173 158 -185 171 -185 200 0 57 -49 106 -120 120 -20 4 -54 24 -80 47 -164 147 -215 193 -303 278 -109 105 -138 124 -172 116 -52 -13 -55 -60 -41 -691 6 -296 6 -323 -11 -355 -20 -38 -56 -50 -85 -28 -24 18 -36 100 -37 252 -4 358 -11 653 -16 690 -13 99 -17 115 -36 135 -24 26 -40 26 -87 2 -37 -19 -255 -222 -410 -383 -77 -79 -89 -88 -138 -98 -37 -8 -62 -21 -83 -42 -29 -30 -49 -87 -38 -106 6 -9 -240 -257 -283 -286 -36 -24 -79 -21 -89 7 -22 57 59 160 373 472 127 127 313 316 413 420 273 286 267 276 269 459 l2 129 48 51 c49 51 207 196 210 193 1 -1 4 -20 7 -43z m-246 -866 c1 -7 4 -104 8 -215 l8 -202 -79 4 c-224 13 -335 24 -344 32 -7 6 389 393 403 393 2 0 4 -6 4 -12z m389 -87 c104 -93 284 -264 281 -267 -3 -4 -45 -10 -109 -18 -27 -3 -69 -9 -95 -12 -67 -8 -105 -14 -124 -20 -9 -2 -19 1 -21 8 -3 7 -6 93 -7 191 -2 201 -8 193 75 118z m469 -365 c41 -62 0 -80 -235 -101 -62 -6 -116 -12 -170 -20 -14 -2 -49 -6 -77 -10 l-53 -7 0 51 c0 59 -3 57 99 66 41 3 77 8 80 9 4 2 34 7 68 10 78 8 147 18 151 20 1 2 29 4 61 5 54 2 62 0 76 -23z m-1236 -21 c14 -2 72 -7 130 -11 59 -3 129 -7 156 -9 28 -2 62 -3 78 -4 26 -1 27 -3 27 -57 l0 -56 -67 6 c-38 3 -108 8 -158 11 -49 2 -135 7 -190 10 -179 10 -208 18 -218 56 -4 14 2 29 20 46 24 25 28 25 111 20 48 -4 98 -9 111 -12z"/>
+<path d="M2492 3210 c-12 -12 -23 -27 -23 -35 -1 -8 -2 -21 -3 -27 -6 -43 56 -92 105 -83 58 11 78 91 34 139 -30 33 -81 35 -113 6z"/>
+<path d="M2330 3010 c-45 -45 -11 -124 54 -124 41 0 64 17 69 54 12 72 -73 120 -123 70z"/>
+<path d="M2145 2820 c-49 -11 -65 -23 -166 -127 -144 -148 -172 -202 -144 -270 17 -39 52 -63 99 -67 50 -5 102 30 209 143 134 142 160 191 133 255 -22 53 -73 79 -131 66z m51 -68 c30 -21 18 -63 -37 -126 -29 -34 -39 -33 -77 7 l-33 34 50 46 c48 45 73 55 97 39z m-176 -196 l38 -34 -32 -35 c-17 -19 -42 -42 -57 -51 -23 -14 -27 -14 -47 0 -12 8 -22 23 -22 32 0 16 67 122 78 122 2 0 21 -15 42 -34z"/></g></symbol>
+  </defs>
+</svg>
+<header id="nav" class="nav">
+  <div class="navstart"><button id="backBtn" class="glassbtn hidden" aria-label="Zurück"></button></div>
+  <div id="navTitle" class="navtitle" aria-hidden="true"></div>
+  <div class="navend" id="navEnd"></div>
+</header>
+<main id="view"></main>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<input type="file" id="fileIn" accept=".json,application/json" class="hidden">
+
+<script>
+"use strict";
+/* ---------- Konfiguration ---------- */
+const API = "https://luxasr.uni.lu";
+const MAX_REC_SECONDS = 120;
+const STORE_KEY = "sportnotizen.v1";
+const HINT = "Zum Aufnehmen tippen";
+
+/* ---------- Symbole (Strichstärke und Rundung wie bei SF Symbols) ---------- */
+const ic = (p, s = 22, w = 1.9) => `<svg class="ic" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const I = {
+  back: ic('<path d="M14.5 5.5 8 12l6.5 6.5"/>', 22, 2.3),
+  chev: ic('<path d="M9.5 5.5 16 12l-6.5 6.5"/>', 14, 2.6),
+  sliders: ic('<path d="M4 7h8.8M17.2 7H20M4 12h2.8M11.2 12H20M4 17h10.8M19.2 17H20"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="12" r="2.2"/><circle cx="17" cy="17" r="2.2"/>'),
+  keyboard: ic('<rect x="2.8" y="6" width="18.4" height="12" rx="3.4"/><path d="M7 10h.01M10.7 10h.01M14.4 10h.01M17.1 10h.01M8.6 14h6.8" stroke-width="2.2"/>', 26),
+  x: ic('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>', 20, 2.2),
+  more: ic('<circle cx="5.5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.7" fill="currentColor" stroke="none"/>'),
+  search: ic('<circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/>', 18, 2.1),
+  note: ic('<rect x="5" y="3.5" width="14" height="17" rx="3.5"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/>', 19),
+  personPlus: ic('<circle cx="9.5" cy="8.5" r="3.5"/><path d="M3.5 19.5c.7-3.2 3-5 6-5s5.3 1.8 6 5"/><path d="M18.5 8v6M15.5 11h6"/>', 19),
+  share: ic('<path d="M12 3.5v11M8 7l4-3.5L16 7"/><path d="M8.5 10.5H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/>', 19),
+  backup: ic('<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/>', 19),
+  restore: ic('<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M5 19.5h14"/>', 19),
+  plus: ic('<path d="M12 5v14M5 12h14"/>', 19, 2.2),
+  pencil: ic('<path d="M4.5 19.5l.9-4L16.2 4.7a2 2 0 0 1 2.8 0l.3.3a2 2 0 0 1 0 2.8L8.5 18.6z"/><path d="M14.5 6.5l3 3"/>', 20),
+  trash: ic('<path d="M4.5 7h15M9.5 7V4.5h5V7M6.8 7l.8 12.5h8.8L17.2 7M10.3 11v5M13.7 11v5"/>', 20),
+  minus: ic('<circle cx="12" cy="12" r="10" fill="currentColor" stroke="none"/><path d="M7.5 12h9" stroke="#fff" stroke-width="2.4"/>', 26),
+  check: ic('<circle cx="12" cy="12" r="10.5" fill="currentColor" stroke="none"/><path d="M7.3 12.4l3.2 3.2 6.2-6.6" stroke="#fff" stroke-width="2.3"/>', 26),
+  warn: ic('<circle cx="12" cy="12" r="10.5" fill="currentColor" stroke="none"/><path d="M12 7v6.2M12 16.6h.01" stroke="#fff" stroke-width="2.5"/>', 26)
+};
+
+/* ---------- Daten ---------- */
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+let db = load();
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (d && Array.isArray(d.classes)) { d.classes.forEach(ensureGeneral); return d; }
+  } catch (e) {}
+  return { classes: [] };
+}
+function ensureGeneral(c) {
+  if (!c.general) c.general = { id: "general", name: "Allgemein", notes: [] };
+  return c;
+}
+const GENERAL_LABEL = "Allgemein (Klasse)";
+const classNoteCount = c => c.general.notes.length + c.students.reduce((a, s) => a + s.notes.length, 0);
+/* Backup-Status (getrennt von den Daten): letzter Backup-Zeitpunkt und Änderungen seither */
+const META_KEY = "sportnotizen.meta";
+let meta = { lastBackup: 0, changes: 0 };
+try { Object.assign(meta, JSON.parse(localStorage.getItem(META_KEY))); } catch (e) {}
+function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} }
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
+  catch (e) { toast("Speichern fehlgeschlagen!"); return; }
+  meta.changes++; saveMeta();
+}
+function relTime(ts) {
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 1) return "gerade eben";
+  if (m < 60) return `vor ${m} Min.`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `vor ${h} Std.`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? "gestern" : `vor ${d} Tagen`;
+}
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+const findClass = id => db.classes.find(c => c.id === id);
+const findStudent = (c, id) => c && (id === "general" ? c.general : c.students.find(s => s.id === id));
+const byName = (a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+
+/* ---------- Hilfsfunktionen ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtDate = ts => new Date(ts).toLocaleDateString("de-LU", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+const pad = n => String(n).padStart(2, "0");
+const toDateVal = ts => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+function fromDateVal(val, timeFrom) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val || ""); if (!m) return null;
+  const t = new Date(timeFrom || Date.now());
+  return new Date(+m[1], +m[2] - 1, +m[3], t.getHours(), t.getMinutes()).getTime();
+}
+const isFuture = ts => { const e = new Date(); e.setHours(23, 59, 59, 999); return ts > e.getTime(); };
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const titleHtml = (t, sub) => `<div class="titleblock"><h1 class="largetitle" id="largeTitle">${esc(t)}</h1>${sub ? `<p class="subtitle">${esc(sub)}</p>` : ""}</div>`;
+const dateRowHtml = (id, ts) => `<div class="daterow"><label for="${id}">Datum</label>
+  <input type="date" id="${id}" value="${toDateVal(ts)}">
+  <div class="chips"><button type="button" class="chip" data-shift="-1">−1 Tag</button>
+  <button type="button" class="chip" data-shift="7">+1 Woche</button></div></div>`;
+function bindDateRow(root, id) {
+  root.querySelectorAll("[data-shift]").forEach(b => b.onclick = () => {
+    const inp = root.querySelector("#" + id);
+    const base = fromDateVal(inp.value) || Date.now();
+    const d = new Date(base); d.setDate(d.getDate() + Number(b.dataset.shift));
+    inp.value = toDateVal(d.getTime());
+  });
+}
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+/* Tastatur und Seitengröße (iOS): Sheets bleiben über der Tastatur sichtbar */
+if (window.visualViewport) {
+  const upd = () => {
+    const v = window.visualViewport, r = document.documentElement.style;
+    r.setProperty("--kb", Math.max(0, window.innerHeight - v.height - v.offsetTop) + "px");
+    r.setProperty("--vvh", v.height + "px");
+  };
+  visualViewport.addEventListener("resize", upd); visualViewport.addEventListener("scroll", upd); upd();
+}
+
+/* ---------- Kopfzeile ---------- */
+const gearBtn = `<button id="menuBtn" class="glassbtn" aria-label="Einstellungen">${I.sliders}</button>`;
+function setHeader(title, backLabel, endHtml) {
+  $("#navTitle").textContent = title;
+  const b = $("#backBtn");
+  b.innerHTML = I.back; b.classList.toggle("hidden", !backLabel);
+  b.setAttribute("aria-label", backLabel ? "Zurück zu " + backLabel : "Zurück");
+  $("#navEnd").innerHTML = endHtml === undefined ? gearBtn : endHtml;
+  const m = $("#menuBtn"); if (m) m.onclick = () => go("#/settings");
+  document.title = title === "Sportnotizen" ? title : title + " – Sportnotizen";
+}
+function updateNav() {
+  const nav = $("#nav"), lt = $("#largeTitle");
+  nav.classList.toggle("scrolled", window.scrollY > 4);
+  $("#navTitle").classList.toggle("show", !lt || lt.getBoundingClientRect().bottom < nav.offsetHeight + 2);
+}
+window.addEventListener("scroll", () => requestAnimationFrame(updateNav), { passive: true });
+function setView(html, withDock) {
+  const v = $("#view"); v.className = withDock ? "with-dock" : "";
+  v.innerHTML = html; window.scrollTo(0, 0); updateNav();
+}
+$("#backBtn").onclick = () => goBack();
+
+/* Zurück: immer eine Ebene höher (die Browser-Zurück-Taste funktioniert über den Hash ebenfalls) */
+function parentHash() {
+  const p = location.hash.replace(/^#\/?/, "").split("/");
+  if (p[0] === "c" && p[1] && p[2]) return "#/c/" + p[1];
+  return "#/";
+}
+function isHome() { const h = location.hash.replace(/^#\/?/, ""); return h === ""; }
+function hasUnsavedDraft() {
+  const d = $("#draft");
+  return !!(rec || (sheetOpen() && d && !txBusy && d.value.trim() !== (sheet.initial || "").trim()));
+}
+function goBack() {
+  if (hasUnsavedDraft() && !confirm("Nicht gespeicherte Notiz verwerfen?")) return;
+  if (isHome()) return;
+  go(parentHash());
+}
+/* Tastatur: Return/Leertaste auf Listenzeilen, Escape schließt Sheets */
+document.addEventListener("keydown", e => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches && e.target.matches('[role="button"]')) { e.preventDefault(); e.target.click(); }
+  if (e.key === "Escape") { if ($("#actions")) closeActionSheet(); else if (sheetOpen()) $("#discard").click(); }
+});
+
+/* ---------- Routing ---------- */
+function go(hash) { if (location.hash !== hash) location.hash = hash; else render(); }
+window.addEventListener("hashchange", render);
+function render() {
+  stopRecording(true); closeActionSheet(); document.body.classList.remove("sheet-open");
+  const parts = location.hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
+  if (parts[0] === "c" && parts[1] && parts[2] === "edit") return renderEditStudents(parts[1]);
+  if (parts[0] === "c" && parts[1] && parts[2] === "s" && parts[3]) return renderStudent(parts[1], parts[3]);
+  if (parts[0] === "c" && parts[1]) return renderClass(parts[1]);
+  if (parts[0] === "settings") return renderSettings();
+  renderHome();
+}
+
+/* ---------- Aktionsmenü (wie iOS Action Sheet) ---------- */
+function closeActionSheet() { const a = $("#actions"); if (a) a.remove(); }
+function actionSheet(items, opts = {}) {
+  closeActionSheet();
+  const root = document.createElement("div");
+  root.id = "actions"; root.className = "overlay";
+  root.innerHTML = `<div class="scrim"></div><div class="actionwrap" role="dialog" aria-modal="true">
+    <div class="actiongroup">${opts.title ? `<div class="actiontitle">${esc(opts.title)}</div>` : ""}
+      ${items.map((it, i) => `<button class="actionbtn${it.destructive ? " destructive" : ""}" data-i="${i}">${it.icon || ""}<span>${esc(it.label)}</span></button>`).join("")}</div>
+    <button class="actionbtn cancel" data-cancel>Abbrechen</button></div>`;
+  document.body.appendChild(root);
+  root.querySelector(".scrim").onclick = closeActionSheet;
+  root.querySelector("[data-cancel]").onclick = closeActionSheet;
+  root.querySelectorAll("[data-i]").forEach(b => b.onclick = () => { closeActionSheet(); items[Number(b.dataset.i)].run(); });
+  const first = root.querySelector("[data-i]"); if (first) first.focus({ preventScroll: true });
+}
+
+/* ---------- Bildschirm: Klassen ---------- */
+/* Erster Start (keine Klassen): Klassen anlegen oder Backup einspielen */
+function renderWelcome() {
+  setHeader("Sportnotizen", null);
+  setView(`
+    ${titleHtml("Willkommen", "Lege deine erste Klasse an.")}
+    <div class="card"><textarea id="newClasses" rows="4" placeholder="6A&#10;6B" aria-label="Klassennamen, einer pro Zeile"></textarea></div>
+    <button class="capsule filled block" id="createClasses">Klassen anlegen</button>
+    <p class="footnote">Ein Name pro Zeile. Die Schüler trägst du danach in jeder Klasse ein.</p>
+    <h3 class="sectionhead">Schon Daten vorhanden?</h3>
+    <div class="list"><div class="cell tap" id="restoreFirst" role="button" tabindex="0">
+      <span class="glyph gray">${I.restore}</span><span class="stack"><span class="name">Backup wiederherstellen</span>
+      <span class="sub">Aus der alten App oder von einem anderen Gerät</span></span>${I.chev}</div></div>`);
+  $("#createClasses").onclick = () => {
+    const names = [...new Set($("#newClasses").value.split(/\r?\n/).map(s => s.trim()).filter(Boolean))];
+    if (!names.length) return toast("Bitte mindestens einen Klassennamen eingeben");
+    db.classes = names.map(n => ensureGeneral({ id: uid(), name: n, students: [] }));
+    save(); toast(names.length === 1 ? "Klasse angelegt" : `${names.length} Klassen angelegt`); renderHome();
+  };
+  $("#restoreFirst").onclick = () => $("#fileIn").click();
+}
+
+function backupDockHtml() {
+  const dirty = meta.changes > 0;
+  const last = meta.lastBackup ? relTime(meta.lastBackup) : "noch nie";
+  return `<div class="dock backupcard${dirty ? " dirty" : ""}">
+    <div class="backuptext"><span class="dot">${dirty ? I.warn : I.check}</span><div>
+      <div class="state">${dirty ? `${meta.changes} Änderung${meta.changes === 1 ? "" : "en"} noch nicht gesichert` : "Alles gesichert"}</div>
+      <div class="sub">Letztes Backup: ${last}</div></div></div>
+    <button class="capsule ${dirty ? "filled" : "soft"}" id="doBackup">Fertig – Backup erstellen</button>
+  </div>`;
+}
+
+function renderHome() {
+  if (!db.classes.length) return renderWelcome();
+  setHeader("Sportnotizen", null);
+  setView(`
+    ${titleHtml("Klassen", db.year ? "Schuljahr " + db.year : "")}
+    <div class="list">${db.classes.map(c => `
+      <div class="cell item tap" data-c="${c.id}" role="button" tabindex="0"><span class="stack"><span class="name">${esc(c.name)}</span>
+        <span class="sub">${plural(c.students.length, "Schüler", "Schüler")}, ${plural(classNoteCount(c), "Notiz", "Notizen")}</span></span>${I.chev}</div>`).join("")}</div>
+    ${backupDockHtml()}`, true);
+  $("#view").querySelectorAll("[data-c]").forEach(el => el.onclick = () => go("#/c/" + el.dataset.c));
+  $("#doBackup").onclick = async () => { if (await backupNow()) { toast("Backup erstellt ✓"); render(); } };
+}
+
+/* ---------- Bildschirm: Schülerliste ---------- */
+function renderClass(cid) {
+  const c = findClass(cid); if (!c) return go("#/");
+  setHeader(c.name, "Klassen");
+  const students = [...c.students].sort(byName);
+  setView(`
+    ${titleHtml(c.name, `${plural(students.length, "Schüler", "Schüler")}, ${plural(classNoteCount(c), "Notiz", "Notizen")}`)}
+    ${students.length > 8 ? `<label class="search">${I.search}<input type="search" id="q" placeholder="Suchen" autocomplete="off" aria-label="Schüler suchen"></label>` : ""}
+    <div class="list"><div class="cell item tap" data-s="general" role="button" tabindex="0">
+      <span class="glyph tint">${I.note}</span><span class="stack"><span class="name">${GENERAL_LABEL}</span>
+      <span class="sub">${plural(c.general.notes.length, "Notiz", "Notizen")}</span></span>${I.chev}</div></div>
+    <div class="list" id="slist">${students.length ? students.map(s => {
+      const last = s.notes.length ? Math.max(...s.notes.map(n => n.ts)) : null;
+      return `<div class="cell item tap" data-s="${s.id}" data-n="${esc(s.name.toLowerCase())}" role="button" tabindex="0">
+        <span class="stack"><span class="name">${esc(s.name)}</span><span class="sub">${s.notes.length ? plural(s.notes.length, "Notiz", "Notizen") + ", zuletzt " + new Date(last).toLocaleDateString("de-LU", { day: "2-digit", month: "2-digit" }) : "Noch keine Notizen"}</span></span>${I.chev}</div>`;
+    }).join("") : `<div class="empty-row">Noch keine Schüler in dieser Klasse.</div>`}</div>
+    <h3 class="sectionhead">Klasse verwalten</h3>
+    <div class="list">
+      <div class="cell tap" id="edit" role="button" tabindex="0"><span class="glyph tint">${I.personPlus}</span><span class="name stack">Schüler eingeben oder ändern</span>${I.chev}</div>
+      <div class="cell tap" id="exp" role="button" tabindex="0"><span class="glyph green">${I.share}</span><span class="name stack">Notizen exportieren (Excel)</span>${I.chev}</div>
+    </div>`);
+  $("#view").querySelectorAll("[data-s]").forEach(el => el.onclick = () => go(`#/c/${cid}/s/${el.dataset.s}`));
+  $("#edit").onclick = () => go(`#/c/${cid}/edit`);
+  $("#exp").onclick = () => exportCSV([c], `Notizen_${c.name}`);
+  const q = $("#q");
+  if (q) q.oninput = () => {
+    const v = q.value.trim().toLowerCase();
+    $("#slist").querySelectorAll("[data-n]").forEach(el => el.classList.toggle("hidden", !el.dataset.n.includes(v)));
+  };
+}
+
+/* ---------- Bildschirm: Schüler eingeben ---------- */
+function renderEditStudents(cid) {
+  const c = findClass(cid); if (!c) return go("#/");
+  setHeader(c.name + " – Schüler", c.name, `<button id="saveNames" class="capsule filled sm">Speichern</button>`);
+  setView(`
+    ${titleHtml("Schüler", c.name)}
+    <div class="card"><textarea id="names" style="min-height:240px" aria-label="Schülernamen, einer pro Zeile">${esc([...c.students].sort(byName).map(s => s.name).join("\n"))}</textarea></div>
+    <p class="footnote">Ein Name pro Zeile. Du kannst eine Spalte direkt aus Excel einfügen. Schüler, die du löschst, verlieren ihre Notizen.</p>
+    <h3 class="sectionhead">Klasse umbenennen</h3>
+    <div class="card"><div class="cell"><input class="plain" type="text" id="cname" value="${esc(c.name)}" aria-label="Klassenname"></div></div>
+    <button class="capsule soft block" id="saveCname">Namen speichern</button>`);
+  const ta = $("#names"), fit = () => { ta.style.height = "auto"; ta.style.height = Math.min(Math.max(ta.scrollHeight + 2, 240), window.innerHeight * 0.6) + "px"; };
+  fit(); ta.addEventListener("input", fit);
+  $("#saveNames").onclick = () => {
+    const names = [...new Set($("#names").value.split(/\r?\n/).map(s => s.replace(/[\t;]+/g, " ").trim()).filter(Boolean))];
+    const removed = c.students.filter(s => !names.includes(s.name));
+    const lostNotes = removed.reduce((a, s) => a + s.notes.length, 0);
+    if (lostNotes && !confirm(`${removed.length} Schüler mit ${lostNotes} Notizen werden gelöscht. Weiter?`)) return;
+    c.students = names.map(n => c.students.find(s => s.name === n) || { id: uid(), name: n, notes: [] });
+    save(); toast(`${c.students.length} Schüler gespeichert`); go("#/c/" + c.id);
+  };
+  $("#saveCname").onclick = () => {
+    const v = $("#cname").value.trim(); if (!v) return;
+    c.name = v; save(); toast("Klasse umbenannt");
+    $("#navTitle").textContent = c.name + " – Schüler"; $(".subtitle").textContent = c.name;
+  };
+}
+
+/* ---------- Bildschirm: Schüler mit Aufnahme ---------- */
+let rec = null;        // { mr, stream, chunks, start, cancelled, c, s, timer }
+let lastAudio = null;  // { blob, mime } für erneuten Versuch
+let wave = null;       // Wellenform während der Aufnahme
+let sheet = { mode: "new", noteId: null, initial: "" };
+let txTok = 0, txBusy = false, starting = false, hintTimer, closeTimer;
+
+function renderStudent(cid, sid) {
+  const c = findClass(cid), s = findStudent(c, sid); if (!s) return go("#/");
+  const general = sid === "general";
+  setHeader(general ? "Allgemein" : s.name, c.name);
+  lastAudio = null; txBusy = false; sheet = { mode: "new", noteId: null, initial: "" };
+  setView(`
+    ${titleHtml(general ? "Allgemein" : s.name, general ? `Notizen für die ganze Klasse ${c.name}` : c.name)}
+    <div id="notes"></div>
+
+    <div class="dock" id="dock">
+      <div class="wavewrap" aria-hidden="true"><canvas id="wave"></canvas></div>
+      <div class="dockrow">
+        <div class="slot l">
+          <button class="glassbtn only-idle" id="typeBtn" aria-label="Notiz tippen">${I.keyboard}</button>
+          <button class="glassbtn only-rec" id="cancelRec" aria-label="Aufnahme verwerfen">${I.x}</button>
+        </div>
+        <button class="recbtn" id="recBtn" aria-label="Aufnahme starten"><span class="rb"></span></button>
+        <div class="slot r"><span class="timer" id="timer" aria-live="off">0:00</span></div>
+      </div>
+      <div class="hint" id="hint">${HINT}</div>
+    </div>
+
+    <div id="editor" class="hidden" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="scrim" id="scrim"></div>
+      <div class="sheet" id="sheetBox">
+        <div class="grabber"></div>
+        <div class="sheet-nav" id="sheetNav">
+          <button class="txtbtn danger" id="discard">Verwerfen</button>
+          <h2 id="sheetTitle">Neue Notiz</h2>
+          <button class="capsule filled sm" id="saveNote">Speichern</button>
+        </div>
+        <div class="status hidden" id="status"></div>
+        <textarea id="draft" placeholder="Notiz…" aria-label="Notiztext"></textarea>
+        ${dateRowHtml("ndate", Date.now())}
+        <button class="capsule soft block hidden" id="retry">Erneut transkribieren</button>
+      </div>
+    </div>`, true);
+  renderNotes(c, s);
+  bindDateRow($("#editor"), "ndate");
+  $("#recBtn").onclick = () => rec ? stopRecording(false) : startRecording(c, s);
+  $("#cancelRec").onclick = () => stopRecording(true);
+  $("#typeBtn").onclick = () => openNoteSheet(c, s, null);
+  $("#scrim").onclick = () => { if (!$("#draft").value.trim() && !txBusy) $("#discard").click(); };
+  $("#draft").addEventListener("input", autosize);
+  $("#retry").onclick = () => lastAudio && transcribe(lastAudio, c, s);
+  $("#discard").onclick = () => {
+    const dirty = !txBusy && $("#draft").value.trim() !== (sheet.initial || "").trim();
+    const doIt = () => { txTok++; txBusy = false; if (sheet.mode === "new") lastAudio = null; hideEditor(); setHint(HINT); $("#recBtn").disabled = false; };
+    if (dirty) actionSheet([{ label: "Notiz verwerfen", destructive: true, icon: I.trash, run: doIt }], { title: "Die Notiz wurde noch nicht gesichert." });
+    else doIt();
+  };
+  $("#saveNote").onclick = () => {
+    const text = $("#draft").value.trim();
+    if (!text) return toast("Die Notiz ist leer");
+    if (sheet.mode === "edit") {
+      const n = s.notes.find(x => x.id === sheet.noteId);
+      if (n) { n.text = text; const t = fromDateVal($("#ndate").value, n.ts); if (t) n.ts = t; }
+      save(); hideEditor(); renderNotes(c, s); toast("Notiz geändert"); return;
+    }
+    const ts = fromDateVal($("#ndate").value) || Date.now();
+    s.notes.push({ id: uid(), ts, text }); save();
+    lastAudio = null; hideEditor();
+    setHint(isFuture(ts) ? `Gespeichert für ${fmtDate(ts)} ✓` : "Gespeichert ✓", "ok"); renderNotes(c, s);
+  };
+  swipeToDismiss($("#sheetBox"), $("#sheetNav"), () => $("#discard").click());
+}
+
+function renderNotes(c, s) {
+  const box = $("#notes");
+  if (!s.notes.length) {
+    box.innerHTML = `<div class="empty"><svg class="art" viewBox="0 0 512 512" role="img" aria-label="Mikrofon"><use href="#mic-art"/></svg>
+      <h2>Noch keine Notizen</h2><p>Tippe auf den roten Knopf und sprich. Oder schreibe die Notiz mit der Tastatur.</p></div>`;
+    return;
+  }
+  box.innerHTML = `<h3 class="sectionhead" id="ncount">${plural(s.notes.length, "Notiz", "Notizen")}</h3><div class="list">` +
+    [...s.notes].sort((a, b) => b.ts - a.ts).map(n => `
+    <article class="note" data-id="${n.id}">
+      <div class="notehead"><span class="notedate">${fmtDate(n.ts)}${isFuture(n.ts) ? '<span class="tag">geplant</span>' : ""}</span>
+        <button class="more" data-more aria-label="Optionen für diese Notiz">${I.more}</button></div>
+      <p class="text">${esc(n.text)}</p>
+    </article>`).join("") + `</div>`;
+  box.querySelectorAll(".note").forEach(el => {
+    const n = s.notes.find(x => x.id === el.dataset.id);
+    el.querySelector("[data-more]").onclick = () => actionSheet([
+      { label: "Notiz ändern", icon: I.pencil, run: () => openNoteSheet(c, s, n) },
+      { label: "Notiz löschen", icon: I.trash, destructive: true, run: () => {
+        s.notes = s.notes.filter(x => x.id !== n.id); save(); renderNotes(c, s); toast("Notiz gelöscht");
+      } }
+    ], { title: fmtDate(n.ts) });
+  });
+}
+
+/* Hinweiszeile im Dock und Statuszeile im Sheet */
+function setHint(msg, cls) {
+  const h = $("#hint"); if (!h) return;
+  h.className = "hint" + (cls ? " " + cls : ""); h.textContent = msg;
+  clearTimeout(hintTimer);
+  if (cls === "ok") hintTimer = setTimeout(() => { const x = $("#hint"); if (x) { x.className = "hint"; x.textContent = HINT; } }, 3200);
+}
+const sheetOpen = () => { const e = $("#editor"); return !!e && !e.classList.contains("hidden") && !e.classList.contains("closing"); };
+function setStatus(msg, cls, spin) {
+  if (!sheetOpen()) return setHint(msg, cls);
+  const el = $("#status");
+  el.className = "status" + (cls ? " " + cls : "") + (msg ? "" : " hidden");
+  el.innerHTML = (spin ? '<span class="spinner"></span>' : "") + `<span>${esc(msg)}</span>`;
+}
+function autosize() {
+  const d = $("#draft"); if (!d) return;
+  d.style.height = "auto"; d.style.height = Math.min(d.scrollHeight + 2, Math.max(160, window.innerHeight * 0.4)) + "px";
+}
+function setBusy(on) {
+  txBusy = on;
+  $("#sheetBox").classList.toggle("busy", on);
+  ["#draft", "#saveNote", "#retry"].forEach(id => { $(id).disabled = on; });
+}
+function openNoteSheet(c, s, note, opts = {}) {
+  clearTimeout(closeTimer);
+  sheet = { mode: note ? "edit" : "new", noteId: note ? note.id : null, initial: note ? note.text : "" };
+  $("#sheetTitle").textContent = note ? "Notiz ändern" : "Neue Notiz";
+  $("#draft").value = note ? note.text : ""; $("#draft").placeholder = "Notiz…";
+  $("#ndate").value = toDateVal(note ? note.ts : Date.now());
+  $("#retry").classList.toggle("hidden", !(lastAudio && !note) || !!opts.busy);
+  $("#editor").classList.remove("hidden", "closing");
+  document.body.classList.add("sheet-open");
+  setBusy(!!opts.busy);
+  setStatus(opts.busy ? "Wird transkribiert…" : "", "", !!opts.busy);
+  autosize();
+  if (!opts.busy) $("#draft").focus();
+}
+function hideEditor() {
+  const ed = $("#editor"); if (!ed || ed.classList.contains("hidden")) return;
+  ed.classList.add("closing"); document.body.classList.remove("sheet-open");
+  clearTimeout(closeTimer);
+  closeTimer = setTimeout(() => { ed.classList.add("hidden"); ed.classList.remove("closing"); }, 220);
+}
+/* Sheet nach unten wischen zum Schließen */
+function swipeToDismiss(box, handle, onDismiss) {
+  let y0 = null, dy = 0;
+  handle.addEventListener("touchstart", e => { y0 = e.touches[0].clientY; dy = 0; }, { passive: true });
+  handle.addEventListener("touchmove", e => { if (y0 === null) return; dy = Math.max(0, e.touches[0].clientY - y0); box.style.transform = `translateY(${dy}px)`; }, { passive: true });
+  handle.addEventListener("touchend", () => {
+    if (y0 === null) return; y0 = null;
+    box.style.transition = "transform .2s"; box.style.transform = "";
+    setTimeout(() => { box.style.transition = ""; }, 220);
+    if (dy > 90) onDismiss();
+  });
+}
+
+/* ---------- Aufnahme mit Wellenform ---------- */
+function pickMime() {
+  const opts = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+  return opts.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || "";
+}
+function setDockRecording(on) {
+  const d = $("#dock"), b = $("#recBtn"); if (!d || !b) return;
+  d.classList.toggle("recording", on); b.classList.toggle("on", on);
+  b.setAttribute("aria-label", on ? "Aufnahme beenden" : "Aufnahme starten");
+  const t = $("#timer"); if (t) { t.textContent = "0:00"; t.classList.remove("warn"); }
+}
+function startWave(ac, stream) {
+  const canvas = $("#wave"); if (!ac || !canvas) return;
+  try {
+    if (ac.state === "suspended") ac.resume().catch(() => {});
+    const src = ac.createMediaStreamSource(stream), an = ac.createAnalyser();
+    an.fftSize = 1024; src.connect(an);
+    const buf = new Uint8Array(an.fftSize), bars = [], dpr = window.devicePixelRatio || 1, BAR = 3, GAP = 3;
+    const css = getComputedStyle(document.documentElement);
+    let last = 0, raf = 0, alive = true;
+    const draw = t => {
+      if (!alive) return;
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      if (w && canvas.width !== Math.round(w * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
+      if (t - last > 55) {
+        last = t; an.getByteTimeDomainData(buf);
+        let sum = 0; for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+        bars.push(Math.min(1, Math.sqrt(sum / buf.length) * 3.4));
+        const max = Math.ceil(w / (BAR + GAP)) + 2; if (bars.length > max) bars.splice(0, bars.length - max);
+      }
+      const g = canvas.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+      g.fillStyle = css.getPropertyValue("--label-2").trim() || "#888";
+      const mid = h / 2;
+      for (let i = bars.length - 1; i >= 0; i--) {
+        const x = w - 12 - (bars.length - 1 - i) * (BAR + GAP) - BAR;
+        if (x < -BAR) break;
+        const bh = Math.max(BAR, bars[i] * (h - 14));
+        g.globalAlpha = Math.max(0, Math.min(1, x / 70));
+        g.beginPath(); if (g.roundRect) g.roundRect(x, mid - bh / 2, BAR, bh, BAR / 2); else g.rect(x, mid - bh / 2, BAR, bh); g.fill();
+      }
+      g.globalAlpha = 1; g.fillStyle = css.getPropertyValue("--red").trim() || "#f33";
+      g.beginPath(); if (g.roundRect) g.roundRect(w - 6, 4, 2.5, h - 8, 1.25); else g.rect(w - 6, 4, 2.5, h - 8); g.fill();
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    wave = { stop() { alive = false; cancelAnimationFrame(raf); try { src.disconnect(); } catch (e) {} ac.close().catch(() => {}); } };
+  } catch (e) { try { ac.close(); } catch (e2) {} wave = null; }
+}
+function stopWave() { if (wave) { wave.stop(); wave = null; } }
+
+async function startRecording(c, s) {
+  if (starting) return;
+  if (!navigator.mediaDevices || !window.MediaRecorder) return setHint("Aufnahme wird auf diesem Gerät nicht unterstützt.", "err");
+  // AudioContext sofort (im Tippen-Ereignis) anlegen, sonst startet er auf iOS gesperrt
+  const AC = window.AudioContext || window.webkitAudioContext; let ac = null;
+  try { ac = AC ? new AC() : null; } catch (e) {}
+  let stream; starting = true;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  } catch (e) {
+    starting = false;
+    if (ac) ac.close().catch(() => {});
+    return setHint("Kein Zugriff aufs Mikrofon. Berechtigung im Browser (Website-Einstellungen) erteilen.", "err");
+  }
+  const mime = pickMime();
+  const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  const chunks = [];
+  mr.ondataavailable = e => e.data && e.data.size && chunks.push(e.data);
+  rec = { mr, stream, chunks, start: Date.now(), cancelled: false, c, s }; starting = false;
+  mr.onstop = () => {
+    stream.getTracks().forEach(t => t.stop());
+    stopWave();
+    const r = rec; rec = null;
+    setDockRecording(false);
+    if (!r || r.cancelled) { setHint(HINT); return; }
+    const type = (mr.mimeType || mime || "audio/webm").split(";")[0];
+    const blob = new Blob(chunks, { type });
+    if (blob.size < 2000) return setHint("Aufnahme zu kurz.", "err");
+    lastAudio = { blob, mime: type };
+    transcribe(lastAudio, r.c, r.s);
+  };
+  mr.start(1000);
+  clearTimeout(hintTimer);
+  setDockRecording(true);
+  startWave(ac, stream);
+  rec.timer = setInterval(() => {
+    const sec = Math.floor((Date.now() - rec.start) / 1000);
+    const t = $("#timer"); if (t) { t.textContent = Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); t.classList.toggle("warn", sec >= MAX_REC_SECONDS - 10); }
+    if (sec >= MAX_REC_SECONDS) stopRecording(false);
+  }, 250);
+}
+function stopRecording(cancel) {
+  if (!rec) return;
+  clearInterval(rec.timer);
+  rec.cancelled = !!cancel;
+  if (rec.mr.state !== "inactive") rec.mr.stop(); else { rec.stream.getTracks().forEach(t => t.stop()); stopWave(); rec = null; }
+}
+
+/* ---------- LuxASR ---------- */
+function buildPrompt(c, s) {
+  // Namen der Klasse als Schreibhilfe (max. 900 Zeichen, Wichtigstes zuerst)
+  const names = s.id === "general" ? c.students.map(x => x.name) : [s.name, ...c.students.filter(x => x.id !== s.id).map(x => x.name)];
+  let p = "";
+  for (const n of names) { if ((p + n + ", ").length > 880) break; p += n + ", "; }
+  return p.replace(/, $/, ".");
+}
+async function http(method, url, opts = {}) {
+  let r;
+  try { r = await fetch(url, { method, headers: opts.headers, body: opts.blob }); }
+  catch (e) { throw new Error("Server nicht erreichbar (Internet oder Browser-Sperre/CORS)"); }
+  const txt = await r.text(); let data = txt;
+  try { data = JSON.parse(txt); } catch (e) {}
+  return { status: r.status, data };
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function transcribe(audio, c, s) {
+  const tok = ++txTok;
+  const alive = () => tok === txTok && location.hash === `#/c/${c.id}/s/${s.id}`;
+  openNoteSheet(c, s, null, { busy: true });
+  const rb = $("#recBtn"); if (rb) rb.disabled = true;
+  try {
+    const ext = audio.mime.includes("mp4") ? "m4a" : audio.mime.includes("ogg") ? "ogg" : "webm";
+    const q = new URLSearchParams({ language: "lb", diarization: "Disabled", hesitations: "Hide", outfmt: "text", prompt: buildPrompt(c, s) });
+    const headers = { "Content-Type": audio.mime, "X-Filename": "notiz." + ext };
+    const sub = await http("POST", `${API}/asr2?${q.toString().replace(/\+/g, "%20")}`, { headers, blob: audio.blob });
+    const jobId = sub.data && sub.data.job_id;
+    if (!jobId) throw new Error("Server-Antwort ohne Job (" + sub.status + ")");
+    const t0 = Date.now();
+    while (true) {
+      await sleep(1200);
+      if (!alive()) return;
+      if (Date.now() - t0 > 120000) throw new Error("Timeout");
+      const st = await http("GET", `${API}/v3/asr/jobs/${jobId}`);
+      const status = st.data && st.data.status;
+      if (status === "completed") break;
+      if (status === "failed") throw new Error("Transkription fehlgeschlagen");
+      if (alive()) setStatus(status === "queued" ? "In der Warteschlange…" : "Wird transkribiert…", "", true);
+    }
+    const res = await http("GET", `${API}/v3/asr/jobs/${jobId}/result`);
+    let text = res.data;
+    if (text && typeof text === "object") text = text.text || JSON.stringify(text);
+    text = String(text || "").trim();
+    if (!alive()) return; // Benutzer hat abgebrochen oder den Bildschirm verlassen: nichts automatisch speichern
+    setBusy(false);
+    $("#draft").value = text; sheet.initial = ""; autosize();
+    $("#retry").classList.remove("hidden");
+    setStatus("Prüfen und speichern", "ok");
+  } catch (e) {
+    if (!alive()) return;
+    setBusy(false);
+    $("#draft").placeholder = "Transkription fehlgeschlagen – erneut versuchen oder tippen.";
+    $("#retry").classList.toggle("hidden", !lastAudio);
+    setStatus("Fehler: " + (e.message || e) + ". Internet prüfen und erneut versuchen.", "err");
+    $("#draft").focus();
+  } finally {
+    const b = $("#recBtn"); if (b && tok === txTok) b.disabled = false;
+  }
+}
+
+/* ---------- Einstellungen / Export / Backup ---------- */
+function renderSettings() {
+  setHeader("Einstellungen", "Klassen", "");
+  const total = db.classes.reduce((a, c) => a + classNoteCount(c), 0);
+  setView(`
+    ${titleHtml("Einstellungen")}
+    <h3 class="sectionhead">Schuljahr</h3>
+    <div class="card"><div class="cell"><input class="plain" type="text" id="year" value="${esc(db.year || "")}" placeholder="z. B. 2026/27" aria-label="Schuljahr"></div></div>
+
+    <h3 class="sectionhead">Klassen</h3>
+    <div class="list" id="clist">${db.classes.map(c => `
+      <div class="cell" data-c="${c.id}"><button class="minus" data-del aria-label="Klasse löschen">${I.minus}</button>
+        <input class="plain" type="text" value="${esc(c.name)}" aria-label="Klassenname"></div>`).join("")}</div>
+    <div class="list"><div class="cell tap" id="addClass" role="button" tabindex="0"><span class="glyph tint">${I.plus}</span><span class="name stack">Klasse hinzufügen</span></div></div>
+    <button class="capsule filled block" id="saveClasses">Klassen speichern</button>
+    <p class="footnote">Namen ändern und mit „Klassen speichern“ bestätigen. Schüler und Notizen bleiben beim Umbenennen erhalten.</p>
+
+    <h3 class="sectionhead">Backup</h3>
+    <div class="list">
+      <div class="cell tap" id="backup" role="button" tabindex="0"><span class="glyph tint">${I.backup}</span><span class="name stack">Backup erstellen</span>${I.chev}</div>
+      <div class="cell tap" id="restore" role="button" tabindex="0"><span class="glyph gray">${I.restore}</span><span class="name stack">Backup wiederherstellen</span>${I.chev}</div>
+    </div>
+    <p class="footnote">Die Daten liegen nur in diesem Browser auf diesem Gerät. Werden die Websitedaten gelöscht (oder die installierte App entfernt), sind sie weg. Mach regelmäßig ein Backup (z. B. per Mail oder auf Google Drive).</p>
+
+    <h3 class="sectionhead">Export</h3>
+    <div class="list"><div class="cell tap" id="expAll" role="button" tabindex="0"><span class="glyph green">${I.share}</span><span class="stack"><span class="name">Alle Notizen als Excel-Datei (CSV)</span><span class="sub">${plural(total, "Notiz", "Notizen")} insgesamt</span></span>${I.chev}</div></div>
+
+    <h3 class="sectionhead">Neues Schuljahr</h3>
+    <div class="list"><div class="cell tap destructive" id="newYear" role="button" tabindex="0"><span class="glyph red">${I.trash}</span><span class="name stack">Neues Schuljahr starten</span></div></div>
+    <p class="footnote">Erstellt zuerst ein Backup vom alten Jahr, dann werden alle Schüler und Notizen gelöscht. Die Klassen bleiben (leer) bestehen und können oben umbenannt werden.</p>
+
+    <h3 class="sectionhead">Spracherkennung</h3>
+    <p class="footnote" style="margin-top:0">LuxASR, Universität Luxemburg. Das Audio wird an deren Server geschickt, dort transkribiert und nicht gespeichert.</p>`);
+  $("#expAll").onclick = () => exportCSV(db.classes, "Notizen_alle_Klassen");
+  $("#backup").onclick = async () => { if (await backupNow()) toast("Backup erstellt ✓"); };
+  $("#restore").onclick = () => $("#fileIn").click();
+
+  $("#year").onchange = () => { db.year = $("#year").value.trim(); save(); toast("Schuljahr gespeichert"); };
+  const clist = $("#clist");
+  const bindDel = row => row.querySelector("[data-del]").onclick = () => {
+    const c = findClass(row.dataset.c);
+    const n = c ? classNoteCount(c) : 0;
+    if (c && (c.students.length || n) && !confirm(`„${c.name}“ mit ${c.students.length} Schülern und ${n} Notizen löschen?`)) return;
+    row.remove();
+  };
+  clist.querySelectorAll("[data-c]").forEach(bindDel);
+  $("#addClass").onclick = () => {
+    const row = document.createElement("div");
+    row.className = "cell"; row.dataset.c = "new-" + uid();
+    row.innerHTML = `<button class="minus" data-del aria-label="Klasse löschen">${I.minus}</button><input class="plain" type="text" placeholder="Name der Klasse" aria-label="Klassenname">`;
+    clist.appendChild(row); bindDel(row); row.querySelector("input").focus();
+  };
+  $("#saveClasses").onclick = () => {
+    const rows = [...clist.querySelectorAll("[data-c]")];
+    const next = [];
+    for (const row of rows) {
+      const name = row.querySelector("input").value.trim();
+      if (!name) continue;
+      const old = findClass(row.dataset.c);
+      next.push(old ? Object.assign(old, { name }) : ensureGeneral({ id: uid(), name, students: [] }));
+    }
+    if (!next.length) return toast("Mindestens eine Klasse nötig");
+    db.classes = next; save(); toast("Klassen gespeichert"); renderSettings();
+  };
+  $("#newYear").onclick = async () => {
+    if (!confirm("Schritt 1/2: Es wird jetzt ein Backup vom alten Schuljahr erstellt. Speichere oder verschicke es.")) return;
+    const label = (db.year || stamp()).replace(/[^\w-]+/g, "-");
+    if (!(await backupNow(`Sportnotizen_Backup_Schuljahr_${label}.json`))) return toast("Backup abgebrochen – nichts wurde gelöscht");
+    if (!confirm("Schritt 2/2: Backup gesichert? Jetzt ALLE Schüler und Notizen löschen? (Klassen bleiben bestehen)")) return;
+    db.classes.forEach(c => { c.students = []; c.general = null; ensureGeneral(c); });
+    db.year = ""; save(); toast("Neues Schuljahr gestartet"); renderSettings();
+  };
+}
+$("#fileIn").onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!d || !Array.isArray(d.classes)) throw new Error();
+    if (db.classes.length && !confirm("Alle aktuellen Daten werden durch das Backup ersetzt. Weiter?")) return;
+    d.classes.forEach(ensureGeneral);
+    db = d; save(); meta.changes = 0; meta.lastBackup = Date.now(); saveMeta(); // Daten == Backup-Datei
+    toast("Backup wiederhergestellt"); go("#/"); render();
+  } catch (err) { toast("Keine gültige Backup-Datei"); }
+};
+const stamp = () => new Date().toISOString().slice(0, 10);
+
+function exportCSV(classes, base) {
+  const cell = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const rows = [["Klasse", "Schüler", "Datum", "Uhrzeit", "Notiz"]];
+  classes.forEach(c => [c.general, ...[...c.students].sort(byName)].forEach(s =>
+    [...s.notes].sort((a, b) => a.ts - b.ts).forEach(n => {
+      const d = new Date(n.ts);
+      rows.push([c.name, s.id === "general" ? GENERAL_LABEL : s.name, d.toLocaleDateString("de-LU"),
+        d.toLocaleTimeString("de-LU", { hour: "2-digit", minute: "2-digit" }), n.text]);
+    })));
+  if (rows.length === 1) return toast("Noch keine Notizen zum Exportieren");
+  // Semikolon + BOM: Excel mit europäischen Einstellungen öffnet die Datei direkt korrekt
+  const csv = "﻿" + rows.map(r => r.map(cell).join(";")).join("\r\n");
+  shareFile(`${base.replace(/[^\w.-]+/g, "_")}_${stamp()}.csv`, csv, "text/csv");
+}
+
+/* Gibt true zurück, wenn die Datei geteilt/heruntergeladen wurde, false wenn der Benutzer abgebrochen hat. */
+async function shareFile(name, content, mime) {
+  // Handy: Teilen-Menü (Mail, Drive, OneDrive, "In Dateien sichern"). Sonst, oder wenn das Teilen nicht klappt: normaler Download.
+  try {
+    const file = new File([content], name, { type: mime });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: name });
+      return true;
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return false; // Benutzer hat abgebrochen
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  return true;
+}
+async function backupNow(name) {
+  const ok = await shareFile(name || `Sportnotizen_Backup_${stamp()}.json`, JSON.stringify(db, null, 1), "application/json");
+  if (ok) { meta.lastBackup = Date.now(); meta.changes = 0; saveMeta(); }
+  return ok;
+}
+
+render();
+
+/* Offline-Fähigkeit: Die App-Dateien werden zwischengespeichert (nur die Seite selbst, nie die Notizen oder das Audio). */
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>
