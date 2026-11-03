@@ -199,7 +199,9 @@
   .sheet.busy textarea { opacity: .55; }
   .daterow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
   .daterow label { color: var(--label-2); font-size: .94rem; padding-right: 2px; }
-  .daterow input { flex: 1 1 0; min-width: 0; min-height: 44px; border: 0; border-radius: 14px; padding: 0 12px; background: var(--surface-2); }
+  .datebox { position: relative; flex: 1 1 0; min-width: 0; }
+  .datebox .datetext { display: flex; align-items: center; min-height: 44px; border-radius: 14px; padding: 0 12px; background: var(--surface-2); font-variant-numeric: tabular-nums; }
+  .datebox input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; padding: 0; cursor: pointer; } /* echtes Datumsfeld bleibt für die Auswahl, angezeigt wird TT/MM/JJJJ */
   .chips { display: flex; gap: 8px; flex: 1 1 100%; }
   .chips .chip { flex: 1; }
   .chip { min-height: 44px; padding: 0 12px; border-radius: 999px; background: var(--fill); font-size: .86rem; font-weight: 500; white-space: nowrap; }
@@ -316,13 +318,13 @@ const GENERAL_LABEL = "Allgemeng (Klass)";
 const classNoteCount = c => c.general.notes.length + c.students.reduce((a, s) => a + s.notes.length, 0);
 /* Backup-Status (getrennt von den Daten): letzter Backup-Zeitpunkt und Änderungen seither */
 const META_KEY = "sportnotizen.meta";
-let meta = { lastBackup: 0, changes: 0 };
+let meta = { lastBackup: 0, changes: 0, cloudAt: 0, cloudDirty: false, cloudErr: "" };
 try { Object.assign(meta, JSON.parse(localStorage.getItem(META_KEY))); } catch (e) {}
 function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} }
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
   catch (e) { toast("Späicheren huet net geklappt!"); return; }
-  meta.changes++; saveMeta();
+  meta.changes++; meta.cloudDirty = true; saveMeta(); scheduleCloud();
 }
 function relTime(ts) {
   const m = Math.floor((Date.now() - ts) / 60000);
@@ -341,7 +343,9 @@ const byName = (a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base
 /* ---------- Hilfsfunktionen ---------- */
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const fmtDate = ts => new Date(ts).toLocaleDateString(LOC, { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+/* Datum immer als TT/MM/JJJJ (unabhängig von der Browser-Sprache) */
+const fmtDate = ts => { const d = new Date(ts); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`; };
+const fmtDateVal = v => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ""); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; };
 const pad = n => String(n).padStart(2, "0");
 const toDateVal = ts => { const d = new Date(ts); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 function fromDateVal(val, timeFrom) {
@@ -353,15 +357,20 @@ const isFuture = ts => { const e = new Date(); e.setHours(23, 59, 59, 999); retu
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const titleHtml = (t, sub) => `<div class="titleblock"><h1 class="largetitle" id="largeTitle">${esc(t)}</h1>${sub ? `<p class="subtitle">${esc(sub)}</p>` : ""}</div>`;
 const dateRowHtml = (id, ts) => `<div class="daterow"><label for="${id}">Datum</label>
-  <input type="date" id="${id}" value="${toDateVal(ts)}">
+  <div class="datebox"><span class="datetext" aria-hidden="true">${fmtDateVal(toDateVal(ts))}</span><input type="date" id="${id}" value="${toDateVal(ts)}" aria-label="Datum"></div>
   <div class="chips"><button type="button" class="chip" data-shift="-1">−1 Dag</button>
   <button type="button" class="chip" data-shift="7">+1 Woch</button></div></div>`;
+function setDateVal(inp, val) { inp.value = val; const t = inp.parentNode.querySelector(".datetext"); if (t) t.textContent = fmtDateVal(inp.value); }
 function bindDateRow(root, id) {
+  const field = root.querySelector("#" + id);
+  field.addEventListener("input", () => setDateVal(field, field.value));
+  field.addEventListener("change", () => setDateVal(field, field.value));
+  field.addEventListener("click", () => { try { field.showPicker && field.showPicker(); } catch (e) {} });
   root.querySelectorAll("[data-shift]").forEach(b => b.onclick = () => {
     const inp = root.querySelector("#" + id);
     const base = fromDateVal(inp.value) || Date.now();
     const d = new Date(base); d.setDate(d.getDate() + Number(b.dataset.shift));
-    inp.value = toDateVal(d.getTime());
+    setDateVal(inp, toDateVal(d.getTime()));
   });
 }
 let toastTimer;
@@ -482,7 +491,7 @@ function backupDockHtml() {
   return `<div class="dock backupcard${dirty ? " dirty" : ""}">
     <div class="backuptext"><span class="dot">${dirty ? I.warn : I.check}</span><div>
       <div class="state">${dirty ? `${meta.changes} Ännerung${meta.changes === 1 ? "" : "en"} nach net gesécher` : "Alles gesécher"}</div>
-      <div class="sub">Leschte Backup: ${last}</div></div></div>
+      <div class="sub">Leschte Backup: ${last}<span id="cloudLine">${cloudLine()}</span></div></div></div>
     <button class="capsule ${dirty ? "filled" : "soft"}" id="doBackup">Fäerdeg – Backup maachen</button>
   </div>`;
 }
@@ -514,7 +523,7 @@ function renderClass(cid) {
     <div class="list" id="slist">${students.length ? students.map(s => {
       const last = s.notes.length ? Math.max(...s.notes.map(n => n.ts)) : null;
       return `<div class="cell item tap" data-s="${s.id}" data-n="${esc(s.name.toLowerCase())}" role="button" tabindex="0">
-        <span class="stack"><span class="name">${esc(s.name)}</span><span class="sub">${s.notes.length ? plural(s.notes.length, "Notiz", "Notizen") + ", zulescht " + new Date(last).toLocaleDateString(LOC, { day: "2-digit", month: "2-digit" }) : "Nach keng Notizen"}</span></span>${I.chev}</div>`;
+        <span class="stack"><span class="name">${esc(s.name)}</span><span class="sub">${s.notes.length ? plural(s.notes.length, "Notiz", "Notizen") + ", zulescht " + fmtDate(last).slice(0, 5) : "Nach keng Notizen"}</span></span>${I.chev}</div>`;
     }).join("") : `<div class="empty-row">Nach keng Schüler an dëser Klass.</div>`}</div>
     <h3 class="sectionhead">Klass verwalten</h3>
     <div class="list">
@@ -686,7 +695,7 @@ function openNoteSheet(c, s, note, opts = {}) {
   sheet = { mode: note ? "edit" : "new", noteId: note ? note.id : null, initial: note ? note.text : "" };
   $("#sheetTitle").textContent = note ? "Notiz änneren" : "Nei Notiz";
   $("#draft").value = note ? note.text : ""; $("#draft").placeholder = "Notiz…";
-  $("#ndate").value = toDateVal(note ? note.ts : Date.now());
+  setDateVal($("#ndate"), toDateVal(note ? note.ts : Date.now()));
   $("#retry").classList.toggle("hidden", !(lastAudio && !note) || !!opts.busy);
   $("#editor").classList.remove("hidden", "closing");
   document.body.classList.add("sheet-open");
@@ -913,6 +922,20 @@ function renderSettings() {
     </div>
     <p class="footnote">D’Daten sinn nëmmen an dësem Browser op dësem Gerät gespäichert. Wann d’Sitedaten geläscht ginn (oder déi installéiert App ewechgeholl gëtt), sinn se fort. Maach reegelméisseg e Backup (z. B. per Mail oder op Google Drive).</p>
 
+    <h3 class="sectionhead">Cloud-Backup (automatesch)</h3>
+    <div class="list">
+      <div class="cell"><input class="plain" type="password" id="cloudToken" value="${esc(cloud.token)}" placeholder="Token (vum Worker)" aria-label="Token" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="cell"><input class="plain" type="password" id="cloudPass" value="${esc(cloud.pass)}" placeholder="Passwuert fir d’Verschlësselung" aria-label="Passwuert" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      ${cloud.on ? "" : `<div class="cell"><input class="plain" type="password" id="cloudPass2" value="" placeholder="Passwuert widderhuelen" aria-label="Passwuert widderhuelen" autocomplete="off" autocapitalize="off" spellcheck="false"></div>`}
+    </div>
+    ${cloud.on
+      ? `<div class="list"><div class="cell tap" id="cloudNow" role="button" tabindex="0"><span class="glyph tint">${I.backup}</span><span class="stack"><span class="name">Elo an d’Cloud sécheren</span><span class="sub" id="cloudState">${esc(cloudStateText())}</span></span></div>
+         <div class="cell tap destructive" id="cloudOff" role="button" tabindex="0"><span class="glyph red">${I.x}</span><span class="name stack">Cloud-Backup ausschalten</span></div></div>`
+      : `<button class="capsule filled block" id="cloudOn">Cloud-Backup aschalten</button>`}
+    <div class="list"><div class="cell tap" id="cloudRestore" role="button" tabindex="0"><span class="glyph gray">${I.restore}</span><span class="name stack">Aus der Cloud restauréieren</span>${I.chev}</div></div>
+    <p class="footnote" id="cloudRes" role="status"></p>
+    <p class="footnote">D’App lued d’Daten no all Ännerung (no ongeféier 30 Sekonnen Rou) an wann s du se verléiss <b>verschlësselt</b> op däi Worker. Nëmme mat dengem Passwuert kënnen se gelies ginn; Cloudflare gesäit nëmmen onlieslechen Text. <b>Wann s du d’Passwuert vergiess, ass d’Backup onbrauchbar.</b> Déi lescht 7 Deeg bleiwen erhalen. Op méi Geräter dat selwecht Passwuert a Token huelen; wien als Lescht späichert, gëllt. D’Worker-Adress kënnt ënnen bei „Sproocherkennung“.</p>
+
     <h3 class="sectionhead">Export</h3>
     <div class="list"><div class="cell tap" id="expAll" role="button" tabindex="0"><span class="glyph green">${I.share}</span><span class="stack"><span class="name">All Notizen als Excel-Datei (CSV)</span><span class="sub">${plural(total, "Notiz", "Notizen")} am Ganzen</span></span>${I.chev}</div></div>
 
@@ -939,6 +962,7 @@ function renderSettings() {
   $("#expAll").onclick = () => exportCSV(db.classes, "Klassennotizen_alle_Klassen");
   $("#backup").onclick = async () => { if (await backupNow()) toast("Backup gemaach ✓"); };
   $("#restore").onclick = () => $("#fileIn").click();
+  bindCloudSettings();
 
   $("#year").onchange = () => { db.year = $("#year").value.trim(); save(); toast("Schouljoer gespäichert"); };
   const clist = $("#clist");
@@ -995,7 +1019,7 @@ function exportCSV(classes, base) {
   classes.forEach(c => [c.general, ...[...c.students].sort(byName)].forEach(s =>
     [...s.notes].sort((a, b) => a.ts - b.ts).forEach(n => {
       const d = new Date(n.ts);
-      rows.push([c.name, s.id === "general" ? GENERAL_LABEL : s.name, d.toLocaleDateString(LOC),
+      rows.push([c.name, s.id === "general" ? GENERAL_LABEL : s.name, fmtDate(n.ts),
         d.toLocaleTimeString(LOC, { hour: "2-digit", minute: "2-digit" }), n.text]);
     })));
   if (rows.length === 1) return toast("Nach keng Notizen fir z’exportéieren");
@@ -1025,6 +1049,141 @@ async function backupNow(name) {
   const ok = await shareFile(name || `Klassennotizen_Backup_${stamp()}.json`, JSON.stringify(db, null, 1), "application/json");
   if (ok) { meta.lastBackup = Date.now(); meta.changes = 0; saveMeta(); }
   return ok;
+}
+
+/* ---------- Cloud-Backup: verschlüsselt (AES-GCM), über den eigenen Cloudflare-Worker ---------- */
+const CLOUD_KEY = "klassennotizen.cloud"; // { on, token, pass } nur auf diesem Gerät
+let CLOUD_DELAY = 30000;                  // Ruhezeit nach der letzten Änderung (ms)
+let cloud = { on: false, token: "", pass: "" };
+try { Object.assign(cloud, JSON.parse(localStorage.getItem(CLOUD_KEY))); } catch (e) {}
+const saveCloudCfg = () => { try { localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud)); } catch (e) {} };
+const cloudReady = () => !!(cloud.on && cloud.token && cloud.pass && API !== DEFAULT_API);
+class CloudError extends Error {}
+let cloudBusy = false, cloudTimer = 0;
+
+const b64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function deriveKey(pass, salt, iter) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: iter, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+async function encryptBackup(text, pass) {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12)), iter = 200000;
+  const key = await deriveKey(pass, salt, iter);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(text)));
+  return JSON.stringify({ v: 1, kdf: "PBKDF2-SHA256", iter, salt: b64(salt), iv: b64(iv), ct: b64(ct) });
+}
+async function decryptBackup(blob, pass) {
+  let o; try { o = JSON.parse(blob); } catch (e) {}
+  if (!o || o.v !== 1) throw new CloudError("Dat ass kee gülteg Cloud-Backup.");
+  try {
+    const key = await deriveKey(pass, unb64(o.salt), o.iter);
+    return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(o.iv) }, key, unb64(o.ct)));
+  } catch (e) { throw new CloudError("Falscht Passwuert (oder d’Backup ass beschiedegt)."); }
+}
+async function cloudFetch(method, path, body, token) {
+  let r;
+  try { r = await fetch(API + path, { method, headers: { "X-Backup-Token": token || cloud.token, ...(body ? { "Content-Type": "text/plain" } : {}) }, body }); }
+  catch (e) { throw new CloudError(navigator.onLine === false ? "Keng Internetverbindung." : "De Worker ass net erreechbar. Adress ënnen bei „Sproocherkennung“ kontrolléieren."); }
+  if (r.status === 401) throw new CloudError("Den Token ass falsch.");
+  if (r.status === 501) throw new CloudError("Am Worker feelt nach d’KV-Bindung BACKUPS oder de Secret BACKUP_TOKEN (kuck README).");
+  if (!r.ok && r.status !== 404) throw new CloudError("Server-Feeler (" + r.status + "). Ass dee neisten Worker-Code installéiert?");
+  return r;
+}
+function cloudStateText() {
+  if (meta.cloudErr) return "Feeler: " + meta.cloudErr;
+  if (!meta.cloudAt) return meta.cloudDirty ? "Waart op den éischten Upload" : "Nach net gesécher";
+  return (meta.cloudDirty ? "Ännerungen waarden · " : "Alles gesécher · ") + "leschten Upload " + relTime(meta.cloudAt);
+}
+function cloudLine() {
+  if (!cloud.on) return "";
+  if (meta.cloudErr) return " · Cloud: ⚠ " + meta.cloudErr;
+  if (!meta.cloudAt) return " · Cloud: waart";
+  return meta.cloudDirty ? " · Cloud: Ännerungen waarden" : " · Cloud: " + relTime(meta.cloudAt);
+}
+function refreshCloudLine() {
+  const a = $("#cloudLine"); if (a) a.textContent = cloudLine();
+  const b = $("#cloudState"); if (b) b.textContent = cloudStateText();
+}
+function scheduleCloud() { clearTimeout(cloudTimer); cloudTimer = 0; if (cloudReady()) cloudTimer = setTimeout(uploadCloud, CLOUD_DELAY); }
+async function uploadCloud() {
+  clearTimeout(cloudTimer); cloudTimer = 0;
+  if (!cloudReady() || cloudBusy || !meta.cloudDirty) return;
+  if (!db.classes.length) return; // nie ein leeres Backup hochladen und ein gutes überschreiben
+  cloudBusy = true;
+  const snapshot = JSON.stringify(db);
+  try {
+    await cloudFetch("PUT", "/backup", await encryptBackup(snapshot, cloud.pass));
+    meta.cloudAt = Date.now(); meta.cloudErr = "";
+    if (JSON.stringify(db) === snapshot) meta.cloudDirty = false; else scheduleCloud(); // währenddessen geändert
+  } catch (e) { meta.cloudErr = e instanceof CloudError ? e.message : "Upload feelgeschloen."; }
+  cloudBusy = false; saveMeta(); refreshCloudLine();
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") uploadCloud(); });
+window.addEventListener("pagehide", () => { uploadCloud(); });
+window.addEventListener("online", () => { uploadCloud(); });
+if (cloudReady() && meta.cloudDirty) setTimeout(uploadCloud, 3000);
+
+function bindCloudSettings() {
+  const res = $("#cloudRes"), say = (m, bad) => { res.textContent = m; res.style.color = bad ? "var(--red)" : ""; };
+  const fields = () => ({ token: $("#cloudToken").value.trim(), pass: $("#cloudPass").value, pass2: $("#cloudPass2") ? $("#cloudPass2").value : null });
+  const check = f => {
+    if (API === DEFAULT_API) return "Fir d’éischt ënnen bei „Sproocherkennung“ d’Adress vum Worker aginn.";
+    if (!f.token) return "Den Token feelt.";
+    if (f.pass.length < 8) return "D’Passwuert muss mindestens 8 Zeechen hunn.";
+    if (f.pass2 !== null && f.pass !== f.pass2) return "D’Passwierder sinn net gläich.";
+    return "";
+  };
+  const fail = e => say(e instanceof CloudError ? e.message : "Feeler: " + (e && e.message || e), true);
+  if ($("#cloudOn")) $("#cloudOn").onclick = async () => {
+    const f = fields(), bad = check(f); if (bad) return say(bad, true);
+    say("Gëtt getest…");
+    try {
+      const st = await (await cloudFetch("GET", "/backup/status", null, f.token)).json();
+      if (st.latest) { // ein vorhandenes Backup muss sich mit diesem Passwort öffnen lassen
+        const old = await (await cloudFetch("GET", "/backup", null, f.token)).text();
+        try { await decryptBackup(old, f.pass); } catch (e) { throw new CloudError("Et gëtt schonn e Cloud-Backup, dat sech net mat dësem Passwuert opmaache léisst."); }
+      }
+      Object.assign(cloud, { on: true, token: f.token, pass: f.pass }); saveCloudCfg();
+      if (db.classes.length) {
+        meta.cloudDirty = true; await uploadCloud();
+        if (meta.cloudErr) throw new CloudError(meta.cloudErr);
+        const back = await decryptBackup(await (await cloudFetch("GET", "/backup")).text(), cloud.pass); // Gegenprobe
+        if (back !== JSON.stringify(db)) throw new CloudError("D’Gegenprobe ass feelgeschloen.");
+      }
+      toast("Cloud-Backup ass aktiv ✓"); renderSettings();
+    } catch (e) { cloud.on = false; saveCloudCfg(); fail(e); }
+  };
+  if ($("#cloudNow")) $("#cloudNow").onclick = async () => {
+    say("Gëtt gesécher…"); meta.cloudDirty = true; await uploadCloud();
+    say(meta.cloudErr || "An der Cloud gesécher ✓", !!meta.cloudErr);
+  };
+  if ($("#cloudOff")) $("#cloudOff").onclick = () => { cloud.on = false; saveCloudCfg(); clearTimeout(cloudTimer); toast("Cloud-Backup ausgeschalt"); renderSettings(); };
+  $("#cloudRestore").onclick = async () => {
+    const f = fields(); f.pass2 = null; const bad = check(f); if (bad) return say(bad, true);
+    say("Gëtt gelueden…");
+    try {
+      const st = await (await cloudFetch("GET", "/backup/status", null, f.token)).json();
+      if (!st.latest) return say("An der Cloud ass nach kee Backup.", true);
+      const restore = async day => {
+        try {
+          const text = await (await cloudFetch("GET", "/backup" + (day ? "?day=" + day : ""), null, f.token)).text();
+          const d = JSON.parse(await decryptBackup(text, f.pass));
+          if (!d || !Array.isArray(d.classes)) throw new CloudError("Dat ass kee gülteg Backup.");
+          if (db.classes.length && !confirm("All aktuell Daten ginn duerch d’Cloud-Backup ersat. Weider?")) return say("");
+          d.classes.forEach(ensureGeneral); db = d; save();
+          clearTimeout(cloudTimer); meta.cloudDirty = false; saveMeta(); // gerade erst von dort geholt: nichts zurückschreiben
+          toast("Backup aus der Cloud restauréiert"); go("#/"); render();
+        } catch (e) { fail(e); }
+      };
+      const label = ts => fmtDate(ts) + " " + new Date(ts).toLocaleTimeString(LOC, { hour: "2-digit", minute: "2-digit" });
+      actionSheet([
+        { label: "Neisten (" + (typeof st.latest === "string" ? label(Date.parse(st.latest)) : "–") + ")", icon: I.restore, run: () => restore("") },
+        ...[...st.days].reverse().map(d => ({ label: "Stand vum " + fmtDate(new Date(d + "T12:00:00Z").getTime()), icon: I.restore, run: () => restore(d) }))
+      ], { title: "Cloud-Backup restauréieren" });
+      say("");
+    } catch (e) { fail(e); }
+  };
 }
 
 render();

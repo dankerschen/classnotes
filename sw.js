@@ -2,7 +2,7 @@
    Es werden nur Dateien dieser Seite zwischengespeichert. Anfragen an andere Server
    (LuxASR) und alle Notizen/Audio-Daten laufen daran vorbei.
    Bei einer neuen App-Version: VERSION erhöhen. */
-const VERSION = "v3";
+const VERSION = "v4";
 const CACHE = "klassennotizen-" + VERSION;
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
 

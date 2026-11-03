@@ -25,10 +25,22 @@ The Android app sent audio through a native HTTP plugin, which ignores CORS. A w
 `proxy/worker.js` forwards the three calls the app needs to LuxASR and adds the CORS headers. It only answers requests from the origin(s) you list, forwards nothing else and stores or logs nothing.
 
 1. Free account at cloudflare.com (e-mail only, no card). Workers & Pages -> Create -> Worker -> Deploy, then "Edit code", replace everything with the content of `proxy/worker.js`, Deploy.
-2. Worker -> Settings -> Variables and Secrets -> add `ALLOWED_ORIGIN` = `https://<your-user>.github.io` (origin only, no path). Deploy again.
+2. The allowed page is set at the top of the file (`DEFAULT_ORIGIN`, currently `https://dankerschen.github.io`). To use another address without editing the code, add a variable `ALLOWED_ORIGIN` (origin only, no path) under Settings -> Variables and Secrets and deploy again.
 3. In the app: Astellungen -> Sproocherkennung -> paste the worker address (`https://<name>.<account>.workers.dev`), then "Verbindung testen".
 
 Privacy: with the proxy, the audio and the student names (used as a spelling hint) pass through Cloudflare on their way to LuxASR. The worker does not keep them, but it is one more company in the chain. Check this with your school's data-protection rules, or prefer the direct route if LuxASR allows it.
+
+### Cloud backup (automatic, encrypted)
+A web app cannot run when it is closed and iOS Safari cannot write to a folder, so "automatic" means: while the app is open it uploads a backup to your own Worker 30 s after the last change and when you leave the app. The data is encrypted in the browser (AES-GCM, key from your passphrase via PBKDF2-SHA256, 200 000 rounds); Cloudflare only stores unreadable text in Workers KV: `latest` plus one copy per day that expires after 8 days. A forgotten passphrase cannot be recovered.
+
+One-time setup (the Worker code must be the current `proxy/worker.js`):
+1. Dashboard -> Workers & Pages -> KV: create a namespace (e.g. `klassennotizen-backup`).
+2. Worker -> Settings -> Bindings -> Add -> KV namespace: variable name `BACKUPS`, pick that namespace.
+3. Worker -> Settings -> Variables and Secrets -> Add a secret `BACKUP_TOKEN` with a long random text. Deploy.
+4. App -> Astellungen -> Cloud-Backup: enter the same token, a passphrase (8+ characters, twice), "Cloud-Backup aschalten". The app checks the connection, uploads and reads the backup back to verify it.
+5. New device: enter worker address (Sproocherkennung), token and passphrase, then "Aus der Cloud restauréieren" (latest or one of the last 7 days).
+
+Safeguards: an empty database is never uploaded; enabling is refused if a backup with another passphrase already exists; restoring does not write back to the cloud; failed uploads keep the data marked as unsaved and are retried (next change, app hidden, back online). With several devices the last one that saves wins. Free-plan KV allows 1,000 writes/day (each upload uses 2) and 25 MiB per value.
 
 `proxy/worker.js` is tested against a mocked LuxASR (preflight, allowed/foreign origin, routes, size limit, upstream down); it has not been run against the real server.
 
