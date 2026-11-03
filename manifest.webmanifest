@@ -1,8 +1,8 @@
 {
-  "name": "Sportnotizen",
-  "short_name": "Sportnotizen",
-  "description": "Notizen per Sprache oder Text pro Schüler, mit Export und Backup.",
-  "lang": "de",
+  "name": "Klassennotizen",
+  "short_name": "Klassennotizen",
+  "description": "Notizen per Sprooch oder Text pro Schüler, mat Export a Backup.",
+  "lang": "lb",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -2,8 +2,8 @@
    Es werden nur Dateien dieser Seite zwischengespeichert. Anfragen an andere Server
    (LuxASR) und alle Notizen/Audio-Daten laufen daran vorbei.
    Bei einer neuen App-Version: VERSION erhöhen. */
-const VERSION = "v2";
-const CACHE = "sportnotizen-" + VERSION;
+const VERSION = "v3";
+const CACHE = "klassennotizen-" + VERSION;
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
@@ -12,7 +12,7 @@ self.addEventListener("install", e => {
 
 self.addEventListener("activate", e => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith("sportnotizen-") && k !== CACHE).map(k => caches.delete(k))))
+    caches.keys().then(keys => Promise.all(keys.filter(k => (k.startsWith("sportnotizen-") || k.startsWith("klassennotizen-")) && k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
