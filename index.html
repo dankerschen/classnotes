@@ -491,7 +491,7 @@ function backupDockHtml() {
   return `<div class="dock backupcard${dirty ? " dirty" : ""}">
     <div class="backuptext"><span class="dot">${dirty ? I.warn : I.check}</span><div>
       <div class="state">${dirty ? `${meta.changes} Ännerung${meta.changes === 1 ? "" : "en"} nach net gesécher` : "Alles gesécher"}</div>
-      <div class="sub">Leschte Backup: ${last}<span id="cloudLine">${cloudLine()}</span></div></div></div>
+      <div class="sub">Läschte Backup: ${last}<span id="cloudLine">${cloudLine()}</span></div></div></div>
     <button class="capsule ${dirty ? "filled" : "soft"}" id="doBackup">Fäerdeg – Backup maachen</button>
   </div>`;
 }
@@ -523,7 +523,7 @@ function renderClass(cid) {
     <div class="list" id="slist">${students.length ? students.map(s => {
       const last = s.notes.length ? Math.max(...s.notes.map(n => n.ts)) : null;
       return `<div class="cell item tap" data-s="${s.id}" data-n="${esc(s.name.toLowerCase())}" role="button" tabindex="0">
-        <span class="stack"><span class="name">${esc(s.name)}</span><span class="sub">${s.notes.length ? plural(s.notes.length, "Notiz", "Notizen") + ", zulescht " + fmtDate(last).slice(0, 5) : "Nach keng Notizen"}</span></span>${I.chev}</div>`;
+        <span class="stack"><span class="name">${esc(s.name)}</span><span class="sub">${s.notes.length ? plural(s.notes.length, "Notiz", "Notizen") + ", zuläscht " + fmtDate(last).slice(0, 5) : "Nach keng Notizen"}</span></span>${I.chev}</div>`;
     }).join("") : `<div class="empty-row">Nach keng Schüler an dëser Klass.</div>`}</div>
     <h3 class="sectionhead">Klass verwalten</h3>
     <div class="list">
@@ -934,7 +934,7 @@ function renderSettings() {
       : `<button class="capsule filled block" id="cloudOn">Cloud-Backup aschalten</button>`}
     <div class="list"><div class="cell tap" id="cloudRestore" role="button" tabindex="0"><span class="glyph gray">${I.restore}</span><span class="name stack">Aus der Cloud restauréieren</span>${I.chev}</div></div>
     <p class="footnote" id="cloudRes" role="status"></p>
-    <p class="footnote">D’App lued d’Daten no all Ännerung (no ongeféier 30 Sekonnen Rou) an wann s du se verléiss <b>verschlësselt</b> op däi Worker. Nëmme mat dengem Passwuert kënnen se gelies ginn; Cloudflare gesäit nëmmen onlieslechen Text. <b>Wann s du d’Passwuert vergiess, ass d’Backup onbrauchbar.</b> Déi lescht 7 Deeg bleiwen erhalen. Op méi Geräter dat selwecht Passwuert a Token huelen; wien als Lescht späichert, gëllt. D’Worker-Adress kënnt ënnen bei „Sproocherkennung“.</p>
+    <p class="footnote">D’App lued d’Daten no all Ännerung (no ongeféier 30 Sekonnen Rou) an wann s du se zou mëss <b>verschlësselt</b> op däi Cloudflare-Worker. Nëmme mat dengem Passwuert kënnen se gelies ginn; Cloudflare gesäit nëmmen onliesbaren Text. <b>Wann s du d’Passwuert vergëss, ass de Backup onbrauchbar.</b> Just déi läscht 7 Deeg bleiwen erhalen. Wann s du op méi Geräter dat selwecht Passwuert a de selwechten Token hëlls: wien als Läscht späichert, gëllt. D’Worker-Adress kënnt ënnen bei „Sproocherkennung“.</p>
 
     <h3 class="sectionhead">Export</h3>
     <div class="list"><div class="cell tap" id="expAll" role="button" tabindex="0"><span class="glyph green">${I.share}</span><span class="stack"><span class="name">All Notizen als Excel-Datei (CSV)</span><span class="sub">${plural(total, "Notiz", "Notizen")} am Ganzen</span></span>${I.chev}</div></div>
@@ -1005,7 +1005,7 @@ $("#fileIn").onchange = async e => {
   try {
     const d = JSON.parse(await f.text());
     if (!d || !Array.isArray(d.classes)) throw new Error();
-    if (db.classes.length && !confirm("All aktuell Daten ginn duerch d’Backup ersat. Weider?")) return;
+    if (db.classes.length && !confirm("All aktuell Daten ginn duerch de Backup ersat. Weider?")) return;
     d.classes.forEach(ensureGeneral);
     db = d; save(); meta.changes = 0; meta.lastBackup = Date.now(); saveMeta(); // Daten == Backup-Datei
     toast("Backup restauréiert"); go("#/"); render();
@@ -1079,7 +1079,7 @@ async function decryptBackup(blob, pass) {
   try {
     const key = await deriveKey(pass, unb64(o.salt), o.iter);
     return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(o.iv) }, key, unb64(o.ct)));
-  } catch (e) { throw new CloudError("Falscht Passwuert (oder d’Backup ass beschiedegt)."); }
+  } catch (e) { throw new CloudError("Falscht Passwuert (oder de Backup ass beschiedegt)."); }
 }
 async function cloudFetch(method, path, body, token) {
   let r;
@@ -1093,7 +1093,7 @@ async function cloudFetch(method, path, body, token) {
 function cloudStateText() {
   if (meta.cloudErr) return "Feeler: " + meta.cloudErr;
   if (!meta.cloudAt) return meta.cloudDirty ? "Waart op den éischten Upload" : "Nach net gesécher";
-  return (meta.cloudDirty ? "Ännerungen waarden · " : "Alles gesécher · ") + "leschten Upload " + relTime(meta.cloudAt);
+  return (meta.cloudDirty ? "Ännerungen waarden · " : "Alles gesécher · ") + "läschten Upload " + relTime(meta.cloudAt);
 }
 function cloudLine() {
   if (!cloud.on) return "";
@@ -1170,7 +1170,7 @@ function bindCloudSettings() {
           const text = await (await cloudFetch("GET", "/backup" + (day ? "?day=" + day : ""), null, f.token)).text();
           const d = JSON.parse(await decryptBackup(text, f.pass));
           if (!d || !Array.isArray(d.classes)) throw new CloudError("Dat ass kee gülteg Backup.");
-          if (db.classes.length && !confirm("All aktuell Daten ginn duerch d’Cloud-Backup ersat. Weider?")) return say("");
+          if (db.classes.length && !confirm("All aktuell Daten ginn duerch de Cloud-Backup ersat. Weider?")) return say("");
           d.classes.forEach(ensureGeneral); db = d; save();
           clearTimeout(cloudTimer); meta.cloudDirty = false; saveMeta(); // gerade erst von dort geholt: nichts zurückschreiben
           toast("Backup aus der Cloud restauréiert"); go("#/"); render();
