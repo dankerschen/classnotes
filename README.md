@@ -44,6 +44,9 @@ Safeguards: an empty database is never uploaded; enabling is refused if a backup
 
 `proxy/worker.js` is tested against a mocked LuxASR (preflight, allowed/foreign origin, routes, size limit, upstream down); it has not been run against the real server.
 
+## Credits
+Klassennotizen was originally created by co-teacher Jeff Decker, who obtained permission to use the LuxASR transcription service (University of Luxembourg). Dan Kerschen developed it further with the help of AI. More projects: https://kerschen.lu/projects/
+
 ## Notes
 - Notes are stored in the browser's localStorage on each device; they never go to GitHub.
 - Voice notes are sent to LuxASR (luxasr.uni.lu), whose docs ask integrators to get permission first.
