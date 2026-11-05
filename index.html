@@ -946,7 +946,10 @@ function renderSettings() {
     <h3 class="sectionhead">Sproocherkennung</h3>
     <div class="card"><div class="cell"><input class="plain" type="url" id="apiUrl" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" value="${API === DEFAULT_API ? "" : esc(API)}" placeholder="${DEFAULT_API}" aria-label="Server-Adress"></div></div>
     <div class="list"><div class="cell tap" id="testApi" role="button" tabindex="0"><span class="glyph tint">${I.tick}</span><span class="stack"><span class="name">Verbindung testen</span><span class="sub" id="testRes">Schéckt keng Audiodaten</span></span></div></div>
-    <p class="footnote">LuxASR, Universitéit Lëtzebuerg. D’Audio an d’Schülernimm (als Schreifhëllef) ginn un dëse Server geschéckt a gi do transkribéiert. D’Resultat gëtt um Server no e puer Stonne geläscht. D’Adress nëmmen änneren, wann ee Proxy benotzt gëtt (kuck README); eidel loossen = direkt bei LuxASR.</p>`);
+    <p class="footnote">LuxASR, Universitéit Lëtzebuerg. D’Audio an d’Schülernimm (als Schreifhëllef) ginn un dëse Server geschéckt a gi do transkribéiert. D’Resultat gëtt um Server no e puer Stonne geläscht. D’Adress nëmmen änneren, wann ee Proxy benotzt gëtt (kuck README); eidel loossen = direkt bei LuxASR.</p>
+
+    <h3 class="sectionhead">Iwwer d’App</h3>
+    <p class="footnote" style="margin-top:0">Klassennotizen gouf ursprénglech vum Co-Enseignant Jeff Decker entwéckelt, deen d’Erlaabnes kritt huet, de LuxASR-Transkriptiounsservice ze benotzen. Den Dan Kerschen huet d’App mat Hëllef vu KI weiderentwéckelt. Aner Projeten: <a href="https://kerschen.lu/projects/" target="_blank" rel="noopener">kerschen.lu/projects</a></p>`);
   $("#apiUrl").onchange = () => {
     const v = $("#apiUrl").value.trim().replace(/\/+$/, "");
     if (v && !/^https:\/\/[^\s/]+/.test(v)) { toast("D’Adress muss mat https:// ufänken"); $("#apiUrl").value = API === DEFAULT_API ? "" : API; return; }

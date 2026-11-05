@@ -5,7 +5,7 @@ Read this first, then `README.md` (user-facing setup). Last updated 2026-11-03.
 ## What this is
 A static, installable web app (PWA, no build step, no framework, no third-party scripts) for a teacher in Luxembourg (Dan, sixth grade). He records or types notes **per student** and **per class** ("classnotes", say *classnotes*, never *sportnotes*). Voice is transcribed in Luxembourgish by LuxASR (University of Luxembourg). Hosted on GitHub Pages at `https://dankerschen.github.io/<repo>/`. It replaces an Android APK (Capacitor) called "Sportnotizen".
 
-User context: no Mac, no Apple developer account, uses Comet (WebKit) on iOS, does not want to email third parties if there is another way. He writes Luxembourgish or English; reply in the language he used last. He already has LuxASR's permission to use their server.
+User context: no Mac, no Apple developer account, uses Comet (WebKit) on iOS, does not want to email third parties if there is another way. He writes Luxembourgish or English; reply in the language he used last. He already has LuxASR's permission to use their server. The app was originally created by co-teacher Jeff Decker, who asked LuxASR for that permission; keep this credit (settings, "Iwwer d’App", and README "Credits").
 
 ## Files
 - `index.html`: the whole app (HTML, CSS, JS in one file, ~85 KB). **This is the source of truth** (it used to be generated from a template; that step is gone, edit it directly).
